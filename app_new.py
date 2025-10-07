@@ -29,27 +29,6 @@ def serve_js(filename):
     return send_from_directory(MY_JS_DIR, filename)
 
 
-# from onr_vis_utils import generate_overlay_from_geojson, NALCMS_COLORS, generate_georef_overlays
-
-# def generate_overlay(geojson_path="static/voronoi_3d.geojson"):
-#   # geojson_path = "static/voronoi_3d.geojson"
-
-#   # from rasterio.transform import from_bounds
-
-#   # minx, miny, maxx, maxy = (-120.0, 30.0, -119.0, 31.0)
-#   # transform = from_bounds(minx, miny, maxx, maxy, 1024, 1024)
-#   # print(transform)
-
-
-
-#     # Generate 3 overlays
-#   if not os.path.exists("static/landcover_overlay.png"):
-#       generate_overlay_from_geojson(geojson_path, "landcover", NALCMS_COLORS, out_png="static/landcover_overlay.png")
-#   if not os.path.exists("static/elevation_overlay.png"):
-#       generate_overlay_from_geojson(geojson_path, "elevation", None, out_png="static/elevation_overlay.png")
-#   if not os.path.exists("static/grade_overlay.png"):
-#       generate_overlay_from_geojson(geojson_path, "grade", None, out_png="static/grade_overlay.png")
-
 
 @app.route("/")
 def index():
@@ -533,6 +512,55 @@ makeToggle("AOI Mask", "🟢", "🔴", (aoiEnabled) =>   {
 """
 
 
+
+    html= """
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="/Cesium/Cesium.js"></script>
+    <link href="/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <style>
+        html, body, #cesiumContainer {
+            width: 100%; height: 100%;
+            margin: 0; padding: 0; overflow: hidden;
+        }
+
+
+    /* 🟢 Toggle button styling */
+
+
+    #maskToggle {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 1000; /* keep above Cesium canvas */
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-family: sans-serif;
+    font-size: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #666;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.3s;
+    }
+
+    #maskToggle:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    }
+
+
+    </style>
+</head>
+<body>
+<!--   -->
+<div id="cesiumContainer"></div>
+    <script src="/static/sandcastle_demo.js"></script>
+</body>
+</html>
+
+"""
 
 
     return render_template_string(html)
