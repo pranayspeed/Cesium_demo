@@ -549,13 +549,26 @@ makeToggle("AOI Mask", "🟢", "🔴", (aoiEnabled) =>   {
     #maskToggle:hover {
     background-color: rgba(255, 255, 255, 0.15);
     }
-
+    #coordsBox {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      z-index: 1000;
+      font-family: monospace;
+    }
 
     </style>
 </head>
 <body>
 <!--   -->
 <div id="cesiumContainer"></div>
+  <div id="coordsBox">Click + drag to draw rectangle</div>
+
     <script src="/static/sandcastle_demo.js"></script>
 </body>
 </html>

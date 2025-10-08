@@ -12,12 +12,12 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   timeline: true,
   animation: true,
 });
-const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+// const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 
-
-// Add Cesium OSM buildings to the scene as our example 3D Tileset.
-const osmBuildingsTileset = await Cesium.createOsmBuildingsAsync();
-viewer.scene.primitives.add(osmBuildingsTileset);
+//Pranay: not added buildings for now
+// // Add Cesium OSM buildings to the scene as our example 3D Tileset.
+// const osmBuildingsTileset = await Cesium.createOsmBuildingsAsync();
+// viewer.scene.primitives.add(osmBuildingsTileset);
 
     return viewer;
 }
@@ -89,8 +89,8 @@ viewer.camera.flyToBoundingSphere(sphere, {
 // Define your tasks (lon, lat)
 var tasks = [
   [-116.6, 34.3],
- // [-116.2, 34.5],
- // [-115.9, 34.6]
+ [-116.2, 34.5],
+ [-115.9, 34.6]
 ];
 
 async function show_tasks(tasks)
@@ -293,7 +293,7 @@ async function preloadVoronoi_seeds(viewer) {
       const elevated = Cesium.Cartesian3.fromRadians(
         carto.longitude,
         carto.latitude,
-        elev * 4.0 + 2.0 // just above top surface
+        elev, // * 4.0 + 2.0 // just above top surface
       );
       allPositions.push(elevated);
 
@@ -425,7 +425,7 @@ function add_map_layers(viewer) {
     name: "Landcover Layer",
     rectangle: {
       coordinates: rectangle,
-      height: 10000, // meters above terrain
+      height: 0, //10000, // meters above terrain
       material: new Cesium.ImageMaterialProperty({
         image: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/landcover_overlay.png",
         transparent: true,
@@ -442,7 +442,7 @@ function add_map_layers(viewer) {
     name: "Elevation Layer",
     rectangle: {
       coordinates: rectangle,
-      height: 5000, // meters above terrain
+      height: 0, //5000, // meters above terrain
       material: new Cesium.ImageMaterialProperty({
         image: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/elevation_overlay.png",
         transparent: true,
@@ -470,29 +470,28 @@ const POLYGON_STYLES = {
     getColor: (entity) => {
       const lc = entity.properties?.landcover?.getValue?.() || entity.properties?.landcover || 0;
     // 🌎 NALCMS (North American Land Cover Classification System) — color map
-    const NALCMS_COLORS = {
-    0: "#000000", // No data / Background
-    1: "#476ba0", // Water
-    2: "#d1def8", // Snow and Ice
-    3: "#decaca", // Barren Land
-    4: "#98ea8f", // Grassland
-    5: "#54a84e", // Shrubland
-    6: "#1f8b4c", // Deciduous Broadleaf Forest
-    7: "#006400", // Evergreen Needleleaf Forest
-    8: "#8dc33f", // Mixed Forest
-    9: "#b38f00", // Cropland
-    10: "#e3e2c3", // Wetland
-    11: "#ff0000", // Urban / Built-up
-    12: "#ffff00", // Lichens and Mosses
-    13: "#808080", // Rock, Bare Soil
-    14: "#b2b2b2", // Sparse Vegetation
-    15: "#ffffff", // Clouds
-    16: "#a9a9a9", // Tundra (general)
-    17: "#87ceeb", // Coastal / Shallow Water
-    18: "#8b4513", // Bare Ground
-    19: "#556b2f", // Wet Shrubland
-    20: "#daa520", // Mixed Rangeland / Herbaceous
-    };
+        const NALCMS_COLORS = {
+        1:  "#033e00", // Temperate or sub-polar needleleaf forest
+        2:  "#939b71", // Sub-polar taiga needleleaf forest
+        3:  "#196d12", // Tropical or sub-tropical broadleaf evergreen forest
+        4:  "#1fab01", // Tropical or sub-tropical broadleaf deciduous forest
+        5:  "#5b725c", // Temperate or sub-polar broadleaf deciduous forest
+        6:  "#6b7d2c", // Mixed forest
+        7:  "#b29d29", // Tropical or sub-tropical shrubland
+        8:  "#b48833", // Temperate or sub-polar shrubland
+        9:  "#e9da5d", // Tropical or sub-tropical grassland
+        10: "#e0cd88", // Temperate or sub-polar grassland
+        11: "#a07451", // Sub-polar or polar shrubland-lichen-moss
+        12: "#bad292", // Sub-polar or polar grassland-lichen-moss
+        13: "#3f8970", // Sub-polar or polar barren-lichen-moss
+        14: "#6ca289", // Wetland
+        15: "#e6ad6a", // Cropland
+        16: "#a9abae", // Barren land
+        17: "#db2126", // Urban and built-up
+        18: "#4c73a1", // Water
+        19: "#fff7fe", // Snow and ice
+        };
+
 
       return Cesium.Color.fromCssColorString(NALCMS_COLORS[lc] || "#cccccc").withAlpha(1.0);
     },
@@ -772,6 +771,315 @@ makeToggle("AOI Mask", "🟢", "🔴", (aoiEnabled) =>   {
   aoiEnabled = !aoiEnabled;
 });
 
+
+
+
+async function loadVoronoiWireframe_old(viewer, geojsonUrl, color = Cesium.Color.CYAN, width = 1.0) {
+  const response = await fetch(geojsonUrl);
+  const geojson = await response.json();
+
+  const lineInstances = [];
+
+  // Extract only LineStrings from GeoJSON (edges)
+  for (const feature of geojson.features) {
+    if (feature.geometry.type !== "LineString") continue;
+    const coords = feature.geometry.coordinates;
+    const positions = Cesium.Cartesian3.fromDegreesArray(coords.flat());
+
+    lineInstances.push(
+      new Cesium.GeometryInstance({
+        geometry: new Cesium.PolylineGeometry({
+          positions,
+          width,
+          vertexFormat: Cesium.PolylineColorAppearance.VERTEX_FORMAT,
+        }),
+        attributes: {
+          color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
+        },
+      })
+    );
+  }
+
+  // ✅ Build one batched primitive
+  const primitive = new Cesium.Primitive({
+    geometryInstances: lineInstances,
+    appearance: new Cesium.PolylineColorAppearance({
+      translucent: true,
+    }),
+    asynchronous: false,
+  });
+
+  viewer.scene.primitives.add(primitive);
+  console.log(`✅ Wireframe graph loaded: ${lineInstances.length} edges`);
+
+  return primitive;
+}
+
+
+async function loadVoronoiWireframe(viewer, geojsonUrl, color = Cesium.Color.CYAN, width = 1.0, height = 2000.0) {
+  try {
+    const response = await fetch(geojsonUrl);
+    const geojson = await response.json();
+
+    const lineInstances = [];
+    const pointInstances = [];
+    for (const feature of geojson.features) {
+      if (feature.geometry.type !== "LineString") continue;
+
+      const coords = feature.geometry.coordinates;
+      // Flatten & convert to Cartesian at fixed height
+      const positions = [];
+      for (const [lon, lat] of coords) {
+        positions.push(
+          Cesium.Cartesian3.fromDegrees(lon, lat, height)
+        );
+      }
+
+      lineInstances.push(
+        new Cesium.GeometryInstance({
+          geometry: new Cesium.PolylineGeometry({
+            positions,
+            width,
+            vertexFormat: Cesium.PolylineColorAppearance.VERTEX_FORMAT,
+          }),
+          attributes: {
+            color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
+          },
+        })
+      );
+      // Optional: add points at vertices
+      // for (const pos of positions) {
+      //   pointInstances.push(
+      //     new Cesium.GeometryInstance({
+      //       geometry: new Cesium.PointGeometry({
+      //         position: pos,
+      //         pixelSize: 4.0,
+      //       }),
+      //       attributes: {
+      //         color: Cesium.Color.RED,
+      //       },
+      //     })
+      //   );
+      // }
+    }
+
+    if (lineInstances.length === 0) {
+      console.warn("⚠️ No LineString features found in GeoJSON:", geojsonUrl);
+      return null;
+    }
+
+    const primitive = new Cesium.Primitive({
+      geometryInstances: lineInstances,
+      appearance: new Cesium.PolylineColorAppearance({
+        translucent: true,
+      }),
+      asynchronous: false,
+    });
+
+    // const pointPrimitive = new Cesium.Primitive({
+    //   geometryInstances: pointInstances,
+    //   appearance: new Cesium.PerInstanceColorAppearance({
+    //     translucent: false,
+    //   }),
+    //   asynchronous: false,
+    // });
+
+    // viewer.scene.primitives.add(pointPrimitive);
+
+    viewer.scene.primitives.add(primitive);
+    console.log(`✅ Wireframe graph loaded: ${lineInstances.length} edges at height ${height} m`);
+    return primitive;
+
+  } catch (err) {
+    console.error("❌ Failed to load wireframe GeoJSON:", err);
+  }
+}
+
+
+
+async function addVoronoiGraph(viewer, graphUrl = "/static/voronoi_graph.geojson") {
+
+const wire = await loadVoronoiWireframe(
+  viewer,
+  graphUrl,
+  Cesium.Color.CYAN.withAlpha(0.8),
+  1.5
+);
+
+viewer._voronoiGraphLayer = wire;
+
+console.log("✅ Voronoi graph overlay added from GeoJSON");
+
+// addVoronoiNodes(viewer, await Cesium.GeoJsonDataSource.load(
+
+//   "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/voronoi_graph.geojson"
+// ));
+
+// Cesium.GeoJsonDataSource.load(graphUrl, {
+//   stroke: Cesium.Color.CYAN,
+//   fill: Cesium.Color.TRANSPARENT,
+//   strokeWidth: 2,
+//   markerSymbol: "circle"
+// }).then(ds => {
+//     viewer._voronoiGraphLayer = ds;
+//     viewer.dataSources.add(ds);
+//     console.log("✅ Voronoi graph overlay added from GeoJSON");}
+// );
+function addVoronoiNodes(viewer, geojson, color = Cesium.Color.YELLOW) {
+  const pointInstances = [];
+
+  for (const f of geojson.features) {
+    if (f.geometry.type !== "Point") continue;
+    const [lon, lat] = f.geometry.coordinates;
+    const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 100);
+
+    pointInstances.push(
+      new Cesium.GeometryInstance({
+        geometry: new Cesium.PointGeometry({
+          position: pos,
+          pixelSize: 4.0,
+        }),
+        attributes: {
+          color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
+        },
+      })
+    );
+  }
+
+  const pointPrimitive = new Cesium.Primitive({
+    geometryInstances: pointInstances,
+    appearance: new Cesium.PerInstanceColorAppearance({
+      translucent: false,
+    }),
+    asynchronous: false,
+  });
+
+  viewer.scene.primitives.add(pointPrimitive);
+  return pointPrimitive;
+}
+
+
+
+
+
+
+}
+
+
+function toggleVoronoiGraph(viewer, show = null) {
+  const layer = viewer._voronoiGraphLayer;
+  if (!layer) return console.warn("⚠️ Graph layer not yet added");
+
+  if (show === null) {
+    layer.show = !layer.show;
+  } else {
+    layer.show = !!show;
+  }
+
+  console.log(`🔁 Graph layer ${layer.show ? "visible" : "hidden"}`);
+  viewer.scene.requestRender();
+}
+makeToggle("Graph", "🟢", "⚫", (show) => {
+  toggleVoronoiGraph(viewer, show);
+});
+
+
+let rectangleEntity = null;
+function select_bounds_draw(viewer) {
+let startCartographic = null;
+    let endCartographic = null;
+    
+
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    const coordsBox = document.getElementById("coordsBox");
+
+    // 2️⃣ On first click: set start point
+    handler.setInputAction(function (click) {
+      const cartesian = viewer.scene.pickPosition(click.position);
+      if (!cartesian) return;
+
+      if (!startCartographic) {
+        rectangleEntity = null;
+            startCartographic = Cesium.Cartographic.fromCartesian(cartesian);
+            endCartographic = null;
+            if (rectangleEntity) viewer.entities.remove(rectangleEntity);
+            coordsBox.textContent = `Start set — drag to size rectangle... ${startCartographic}`;
+        }
+        else {
+
+            endCartographic = Cesium.Cartographic.fromCartesian(cartesian);
+            const rect = Cesium.Rectangle.fromCartographicArray([
+                startCartographic,
+                endCartographic,
+            ]);
+            rectangleEntity.rectangle.coordinates = rect;
+            const west = Cesium.Math.toDegrees(rect.west).toFixed(6);
+            const south = Cesium.Math.toDegrees(rect.south).toFixed(6);
+            const east = Cesium.Math.toDegrees(rect.east).toFixed(6);
+            const north = Cesium.Math.toDegrees(rect.north).toFixed(6);
+
+            console.log("✅ Rectangle drawn:", { west, south, east, north });
+            coordsBox.textContent = `Final Rectangle → W S E N:${west}, ${south}, ${east}, ${north}`;
+
+            startCartographic = null;
+            endCartographic = null;
+    }
+
+
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    // 3️⃣ On mouse move: update rectangle dynamically
+    handler.setInputAction(function (movement) {
+      if (!startCartographic) return;
+      const cartesian = viewer.scene.pickPosition(movement.endPosition);
+      if (!cartesian) return;
+      endCartographic = Cesium.Cartographic.fromCartesian(cartesian);
+
+      const rect = Cesium.Rectangle.fromCartographicArray([
+        startCartographic,
+        endCartographic,
+      ]);
+
+      if (!rectangleEntity) {
+        rectangleEntity = viewer.entities.add({
+          name: "Drawn Rectangle",
+          rectangle: {
+            coordinates: rect,
+            material: Cesium.Color.YELLOW.withAlpha(0.3),
+            outline: true,
+            outlineColor: Cesium.Color.RED,
+            heightReference: 200, //Cesium.HeightReference.CLAMP_TO_GROUND,
+            clampToGround: false,
+            height: 0,
+            extrudedHeight: 200,
+            outlineWidth: 2,
+          },
+        });
+      } else {
+        rectangleEntity.rectangle.coordinates = rect;
+      }
+
+
+      const west = Cesium.Math.toDegrees(rect.west).toFixed(5);
+      const south = Cesium.Math.toDegrees(rect.south).toFixed(5);
+      const east = Cesium.Math.toDegrees(rect.east).toFixed(5);
+      const north = Cesium.Math.toDegrees(rect.north).toFixed(5);
+
+      coordsBox.textContent = `W S E N:${west}, ${south}, ${east}, ${north}`;
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+
+}
+
+
+makeToggle("Draw AOI", "🟢", "⚫", (active) => {
+  if (active) {
+    select_bounds_draw(viewer);
+  } else {
+    // Stop drawing
+  }
+});
+
 // ANIMATION sequence starts here================
 
 // === Setup clock ===
@@ -847,6 +1155,9 @@ await toggleElevationVoronoi(false);
 console.log("Cacheing polygon styles...");
 await create3DPrimitiveFromVoronoi(viewer, voronoiLayer);
 console.log("✅ Polygon styles cached.");
+
+
+await addVoronoiGraph(viewer, "/static/voronoi_graph.geojson");
 
 
 // toggle3DPrimitiveStyle(viewer, "landcover");
