@@ -491,7 +491,7 @@ function add_map_layers(viewer) {
 
   const voronoiOverlay = viewer.imageryLayers.addImageryProvider(
     new Cesium.SingleTileImageryProvider({
-      url: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/voronoi_overlay.png",
+      url: "/static/voronoi_overlay.png",
       rectangle: rectangle,
     })
   );
@@ -509,6 +509,31 @@ function add_map_layers(viewer) {
 }
 
 
+function add_overlay(viewer, imageUrl, rectangle, layer_name = "Overlay") {
+  const overlay = viewer.imageryLayers.addImageryProvider(
+    new Cesium.SingleTileImageryProvider({
+      url: imageUrl,
+      rectangle: rectangle,
+    })
+  );
+
+  // Optional: adjust transparency
+  overlay.alpha = 0.7;
+  overlay.brightness = 1.0;
+
+  // === Voronoi Toggle ===
+  makeToggle(layer_name, "🟢", "⚫", (show) => {
+    if (overlay) {
+      overlay.show = show;
+    }
+  });
+
+
+  return overlay;
+}
+
+
+viewer._voronoiSeedOverlay = add_overlay(viewer, "/static/voronoi_seeds_overlay.png", rectangle, "Seed Texture");
 
 // 🟢 Define all your polygon styles in a dictionary
 const POLYGON_STYLES = {
