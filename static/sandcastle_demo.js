@@ -225,9 +225,9 @@ let voronoiReady = false;
  */
 async function preloadVoronoi_seeds(viewer) {
   console.log("🔄 Loading Voronoi data...");
-
+  //https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main
   const ds = await Cesium.GeoJsonDataSource.load(
-    "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/voronoi_3d.geojson",
+    "/static/voronoi_3d.geojson",
     { clampToGround: true }
   );
 
@@ -293,7 +293,7 @@ async function preloadVoronoi_seeds(viewer) {
       const elevated = Cesium.Cartesian3.fromRadians(
         carto.longitude,
         carto.latitude,
-        elev, // * 4.0 + 2.0 // just above top surface
+        elev * 4.0 + 2.0 // just above top surface
       );
       allPositions.push(elevated);
 
@@ -457,6 +457,52 @@ function add_map_layers(viewer) {
   // --- Store references globally or on viewer for later access ---
   viewer._landcoverLayer = landcoverLayer;
   viewer._elevationLayer = elevationLayer;
+
+
+
+  // Add your overlay as a draped imagery layer
+  const landcoverOverlay = viewer.imageryLayers.addImageryProvider(
+    new Cesium.SingleTileImageryProvider({
+      url: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/landcover_overlay.png",
+      rectangle: rectangle,
+    })
+  );
+
+  // Optional: adjust transparency
+  landcoverOverlay.alpha = 0.7;
+  landcoverOverlay.brightness = 1.0;
+
+  viewer._landcoverOverlay = landcoverOverlay;
+
+
+  const elevationOverlay = viewer.imageryLayers.addImageryProvider(
+    new Cesium.SingleTileImageryProvider({
+      url: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/elevation_overlay.png",
+      rectangle: rectangle,
+    })
+  );
+
+  // Optional: adjust transparency
+  elevationOverlay.alpha = 0.7;
+  elevationOverlay.brightness = 1.0;
+
+  viewer._elevationOverlay = elevationOverlay;
+
+
+  const voronoiOverlay = viewer.imageryLayers.addImageryProvider(
+    new Cesium.SingleTileImageryProvider({
+      url: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/voronoi_overlay.png",
+      rectangle: rectangle,
+    })
+  );
+
+  // Optional: adjust transparency
+  voronoiOverlay.alpha = 0.7;
+  voronoiOverlay.brightness = 1.0;
+
+  viewer._voronoiOverlay = voronoiOverlay;
+
+
 
   // --- Create Toggle UI ---
   addDynamicToggles(viewer);
@@ -910,58 +956,6 @@ viewer._voronoiGraphLayer = wire;
 
 console.log("✅ Voronoi graph overlay added from GeoJSON");
 
-// addVoronoiNodes(viewer, await Cesium.GeoJsonDataSource.load(
-
-//   "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/voronoi_graph.geojson"
-// ));
-
-// Cesium.GeoJsonDataSource.load(graphUrl, {
-//   stroke: Cesium.Color.CYAN,
-//   fill: Cesium.Color.TRANSPARENT,
-//   strokeWidth: 2,
-//   markerSymbol: "circle"
-// }).then(ds => {
-//     viewer._voronoiGraphLayer = ds;
-//     viewer.dataSources.add(ds);
-//     console.log("✅ Voronoi graph overlay added from GeoJSON");}
-// );
-function addVoronoiNodes(viewer, geojson, color = Cesium.Color.YELLOW) {
-  const pointInstances = [];
-
-  for (const f of geojson.features) {
-    if (f.geometry.type !== "Point") continue;
-    const [lon, lat] = f.geometry.coordinates;
-    const pos = Cesium.Cartesian3.fromDegrees(lon, lat, 100);
-
-    pointInstances.push(
-      new Cesium.GeometryInstance({
-        geometry: new Cesium.PointGeometry({
-          position: pos,
-          pixelSize: 4.0,
-        }),
-        attributes: {
-          color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
-        },
-      })
-    );
-  }
-
-  const pointPrimitive = new Cesium.Primitive({
-    geometryInstances: pointInstances,
-    appearance: new Cesium.PerInstanceColorAppearance({
-      translucent: false,
-    }),
-    asynchronous: false,
-  });
-
-  viewer.scene.primitives.add(pointPrimitive);
-  return pointPrimitive;
-}
-
-
-
-
-
 
 }
 
@@ -1077,6 +1071,32 @@ makeToggle("Draw AOI", "🟢", "⚫", (active) => {
     select_bounds_draw(viewer);
   } else {
     // Stop drawing
+  }
+});
+
+function toggleLandcoverOverlay(show) {
+if (viewer._landcoverOverlay) {
+  viewer._landcoverOverlay.show = show;
+  }
+}
+
+function toggleElevationOverlay(show) {
+  if (viewer._elevationOverlay) {
+    viewer._elevationOverlay.show = show;
+  }
+}
+
+makeToggle("Landcover Texture", "🟢", "⚫", (show) => {
+  toggleLandcoverOverlay(show);
+});
+
+makeToggle("Elevation Texture", "🟢", "⚫", (show) => {
+  toggleElevationOverlay(show);
+});
+
+makeToggle("Voronoi Texture", "🟢", "⚫", (show) => {
+  if (viewer._voronoiOverlay) {
+    viewer._voronoiOverlay.show = show;
   }
 });
 
