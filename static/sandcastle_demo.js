@@ -1607,17 +1607,39 @@ makeButton("COA 1", "#0078D7", async () => {
 
   const czmlPromise = Cesium.CzmlDataSource.load("/static/agents_coa_3d_1.czml");
 
+czmlPromise.then(ds => {
+  viewer.dataSources.add(ds);
 
-  // viewer.dataSources.add(czmlPromise);
-  // viewer.zoomTo(czmlPromise);
+  clampCZMLToTerrain(ds).then(() => {
 
-  // czmlPromise.then(ds => {
-  //   viewer.zoomTo(ds);
+  // viewer.zoomTo(ds);
+  // Speed up the simulation:
+  viewer.clock.multiplier = 1;   // 10× faster than real time
+  viewer.clock.shouldAnimate = true;
+  ds.entities.values.forEach(ent => {
+    if (ent.position) {
+      const fullPath = new Cesium.PolylineGraphics({
+        positions: ent.position, // uses the same dynamic path
+        clampToGround: true,
+        width: 1.5,
+        material: Cesium.Color.WHITE.withAlpha(0.3)
+      });
+      viewer.entities.add({
+        polyline: fullPath
+      });
+    }
+  });
+  });
+});
 
-  //   // Speed up the simulation:
-  //   viewer.clock.multiplier = 10;   // 10× faster than real time
-  //   viewer.clock.shouldAnimate = true;
-  // });
+});
+
+
+makeButton("COA 2", "#0078D7", async () => {
+
+  // const czmlPromise = Cesium.CzmlDataSource.load("/static/agents_coa_1.czml");
+
+  const czmlPromise = Cesium.CzmlDataSource.load("/static/agents_coa_3d_2.czml");
 
 czmlPromise.then(ds => {
   viewer.dataSources.add(ds);
@@ -1644,11 +1666,8 @@ czmlPromise.then(ds => {
   });
 });
 
-
-
-
-
 });
+
 
 
 function addWeatherEffectForRectangle(viewer, rectangleEntity, type = "snow") {
