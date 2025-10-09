@@ -1,0 +1,678 @@
+[
+  {
+    "id": "document",
+    "name": "Task Points",
+    "version": "1.0"
+  },
+  {
+    "id": "task_1",
+    "name": "T 1",
+    "position": {
+      "cartographicDegrees": [
+        -116.69014300133762,
+        34.242955807461634,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 1",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_2",
+    "name": "T 2",
+    "position": {
+      "cartographicDegrees": [
+        -115.7741717137646,
+        34.55212071346959,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 2",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_3",
+    "name": "D 1",
+    "position": {
+      "cartographicDegrees": [
+        -116.286038021526,
+        34.48491095129395,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          0,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          0,
+          100,
+          255,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 22,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "D 1",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_4",
+    "name": "T 4",
+    "position": {
+      "cartographicDegrees": [
+        -116.63626233736274,
+        34.64621438051549,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 4",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_5",
+    "name": "T 5",
+    "position": {
+      "cartographicDegrees": [
+        -115.85499270972693,
+        34.53867876103446,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 5",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_6",
+    "name": "T 6",
+    "position": {
+      "cartographicDegrees": [
+        -115.88193304171438,
+        34.35049142694266,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 6",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_7",
+    "name": "T 7",
+    "position": {
+      "cartographicDegrees": [
+        -116.58238167338786,
+        34.45802704642369,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 7",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_8",
+    "name": "T 8",
+    "position": {
+      "cartographicDegrees": [
+        -116.36685901748832,
+        34.283281664767024,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 8",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_9",
+    "name": "T 9",
+    "position": {
+      "cartographicDegrees": [
+        -116.05704519963274,
+        34.269839712331894,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 9",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_10",
+    "name": "T 10",
+    "position": {
+      "cartographicDegrees": [
+        -115.90887337370181,
+        34.67309828538574,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          255,
+          0,
+          0,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 18,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "T 10",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  },
+  {
+    "id": "task_11",
+    "name": "D 2",
+    "position": {
+      "cartographicDegrees": [
+        -115.7741717137646,
+        34.431143141553434,
+        2
+      ],
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "point": {
+      "color": {
+        "rgba": [
+          0,
+          255,
+          255,
+          255
+        ]
+      },
+      "outlineColor": {
+        "rgba": [
+          0,
+          100,
+          255,
+          255
+        ]
+      },
+      "outlineWidth": 3,
+      "pixelSize": 22,
+      "heightReference": "CLAMP_TO_GROUND"
+    },
+    "label": {
+      "text": "D 2",
+      "font": "14px sans-serif",
+      "pixelOffset": {
+        "cartesian2": [
+          0,
+          -25
+        ]
+      },
+      "fillColor": {
+        "rgba": [
+          255,
+          255,
+          0,
+          255
+        ]
+      },
+      "showBackground": true,
+      "backgroundColor": {
+        "rgba": [
+          0,
+          0,
+          0,
+          150
+        ]
+      },
+      "heightReference": "CLAMP_TO_GROUND"
+    }
+  }
+]

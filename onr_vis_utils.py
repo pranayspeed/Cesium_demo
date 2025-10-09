@@ -1,5 +1,7 @@
 
-import os, sys 
+import os, sys
+
+from shapely import transform 
 
 sys.path.append("../../Framework")
 
@@ -490,26 +492,47 @@ from shapely.geometry import Polygon
 from rasterio import features
 from rasterstats import zonal_stats
 
-# NALCMS Land Cover Classes (generalized)
-NALCMS_COLORS = {
-    1: "#476ba0",  # Temperate/Sub-polar Needleleaf Forest
-    2: "#488450",  # Sub-polar Taiga Needleleaf Forest
-    3: "#ae732f",  # Tropical/Sub-tropical Broadleaf Evergreen Forest
-    4: "#d1c546",  # Tropical/Sub-tropical Broadleaf Deciduous Forest
-    5: "#b5a246",  # Temperate Broadleaf Deciduous Forest
-    6: "#a58c30",  # Mixed Forest
-    7: "#c3aa69",  # Temperate/Sub-polar Shrubland
-    8: "#e0e0e0",  # Temperate/Sub-polar Grassland
-    9: "#e1cd8d",  # Tropical/Sub-tropical Grassland
-    10: "#f7e174", # Tropical/Sub-tropical Shrubland
-    11: "#b6d96c", # Wetland
-    12: "#82a282", # Cropland
-    13: "#dcd939", # Barren Lands
-    14: "#cccccc", # Urban
-    15: "#64b5f6", # Water
-    16: "#e0ffff", # Snow/Ice
-}
 
+# NALCMS_COLORS = {
+#   1:  "#0b3d0b",  # Needleleaf forest (dark green)
+#   2:  "#206920",  # Taiga needleleaf forest
+#   3:  "#2e8b57",  # Broadleaf evergreen forest
+#   4:  "#66c266",  # Broadleaf deciduous forest
+#   5:  "#98d398",  # Temperate deciduous forest
+#   6:  "#8bab6f",  # Mixed forest
+#   7:  "#c2b280",  # Shrubland
+#   8:  "#dcd37f",  # Grassland
+#   9:  "#d4ca68",  # Tropical grassland
+#   10: "#bbaa44",  # Shrubland variant
+#   11: "#6ab47b",  # Wetland ( swamp-green )
+#   12: "#a9cd8c",  # Cropland (light green/beige)
+#   13: "#c4c48e",  # Barren lands
+#   14: "#999999",  # Urban (gray)
+#   15: "#4a90e2",  # Water (blue)
+#   16: "#ffffff"   # Snow / Ice (white)
+# };
+
+NALCMS_COLORS = {
+    1:  '#033e00',
+    2:  '#939b71',
+    3:  '#196d12',
+    4:  '#1fab01',
+    5:  '#5b725c',
+    6:  '#6b7d2c',
+    7:  '#b29d29',
+    8:  '#b48833',
+    9:  '#e9da5d',
+    10: '#e0cd88',
+    11: '#a07451',
+    12: '#bad292',
+    13: '#3f8970',
+    14: '#6ca289',
+    15: '#e6ad6a',
+    16: '#a9abae',
+    17: '#db2126',
+    18: '#4c73a1',
+    19: '#fff7fe',
+}
 
 
 import numpy as np
@@ -560,11 +583,12 @@ def assign_landcover_from_array(vor_polygons, landcover_array, NALCMS_COLORS, cr
 
 import numpy as np
 import geopandas as gpd
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 from rasterio import features
 
 def assign_landcover_elevation_from_arrays(
     vor_polygons,
+    vor_centers,
     landcover_array,
     elevation_array,
     NALCMS_COLORS,
@@ -603,7 +627,7 @@ def assign_landcover_elevation_from_arrays(
     dy, dx = np.gradient(elevation_array)
     grade_percent = np.sqrt(dx**2 + dy**2) * 100  # approximate % grade (rise/run * 100)
 
-    for poly in vor_polygons:
+    for (poly, center) in zip(vor_polygons, vor_centers):
         # Drop Z if present
         coords_2d = [(x, y) for x, y, *_ in poly.exterior.coords]
         poly2d = Polygon(coords_2d)
@@ -633,9 +657,13 @@ def assign_landcover_elevation_from_arrays(
         grade_vals = grade_percent[mask]
         mean_grade = float(np.nanmean(grade_vals)) if grade_vals.size else np.nan
 
+        # center2d = Point(center[0], center[1])
+        center_z = center[2]
         records.append(
             dict(
                 geometry=poly2d,
+                center_lon=float(center[0]),
+                center_lat=float(center[1]),
                 landcover=int(majority),
                 stroke=stroke_color,
                 elevation_mean=mean_elev,
@@ -647,8 +675,477 @@ def assign_landcover_elevation_from_arrays(
     return gdf
 
 
+import geopandas as gpd
+import numpy as np
+from rasterio import features
+from rasterio.transform import from_bounds
+from PIL import Image
+import matplotlib.pyplot as plt
 
-def save_polygon_geojson():
+def generate_overlay_from_geojson(
+    geojson_path,
+    attr,
+    color_map=None,
+    bounds=None,
+    shape=(1024, 1024),
+    alpha=180,
+    out_png="overlay.png"
+):
+    """
+    Converts polygons in a GeoJSON into a color-coded RGBA raster (PNG).
+
+    Parameters:
+    -----------
+    geojson_path : str
+        Input GeoJSON file path.
+    attr : str
+        Attribute name to colorize by (e.g. 'landcover', 'elevation', 'grade').
+    color_map : dict or None
+        Optional dict mapping attribute values to hex colors.
+    bounds : tuple or None
+        (minx, miny, maxx, maxy). If None, use GeoJSON bounds.
+    shape : tuple
+        (H, W) of the output raster.
+    alpha : int
+        Transparency (0–255).
+    out_png : str
+        Output PNG file name.
+    """
+    # gdf = gpd.read_file(geojson_path, driver="GeoJSON")
+    # if gdf.empty:
+    #     raise ValueError("GeoJSON contains no features")
+
+    # # Compute bounding box and affine transform
+    # if bounds is None:
+    #     bounds = gdf.total_bounds  # (minx, miny, maxx, maxy)
+    # minx, miny, maxx, maxy = bounds
+    # width, height = shape
+    # transform = from_bounds(minx, miny, maxx, maxy, width, height)
+
+    print(f"Generating overlay from {geojson_path} using attribute '{attr}'")
+
+    # Read GeoJSON safely
+    try:
+        gdf = gpd.read_file(geojson_path, engine="pyogrio")
+    except Exception:
+        gdf = gpd.read_file(geojson_path)
+
+    minx, miny, maxx, maxy = gdf.total_bounds
+    width, height = shape
+
+    print(f"GeoJSON bounds: {minx}, {miny}, {maxx}, {maxy}")
+    print(f"Output shape: {width} x {height}")
+
+    # # ✅ Correct transform (Affine)
+    # transform = from_bounds(minx, miny, maxx, maxy, width, height)
+
+
+    from rasterio.transform import from_bounds
+
+    minx, miny, maxx, maxy = gdf.total_bounds
+    width, height = shape
+    transform = from_bounds(minx, miny, maxx, maxy, width, height)
+    print(transform)
+
+
+
+    img = np.zeros((height, width, 4), dtype=np.uint8)
+
+    for _, row in gdf.iterrows():
+        val = row.get(attr)
+        if val is None:
+            continue
+
+        # Determine color
+        if color_map:
+            hex_color = color_map.get(int(val), "#FFFFFF")
+        elif "stroke" in row:
+            hex_color = row["stroke"]
+        else:
+            # Use gradient if numeric
+            cmap = plt.cm.viridis
+            norm_val = (val - gdf[attr].min()) / (gdf[attr].max() - gdf[attr].min())
+            rgba = (np.array(cmap(norm_val)) * 255).astype(np.uint8)
+            hex_color = "#{:02x}{:02x}{:02x}".format(rgba[0], rgba[1], rgba[2])
+
+        # Convert hex to RGB
+        r, g, b = [int(hex_color[i:i+2], 16) for i in (1, 3, 5)]
+
+        mask = features.rasterize(
+            [(row.geometry, 1)],
+            out_shape=(height, width),
+            transform=transform,
+            fill=0,
+            dtype=np.uint8
+        ).astype(bool)
+
+        img[mask, 0] = r
+        img[mask, 1] = g
+        img[mask, 2] = b
+        img[mask, 3] = alpha
+
+    Image.fromarray(img).save(out_png)
+    print(f"✅ Saved {out_png} for {attr}")
+    return out_png
+
+
+
+import numpy as np
+import rasterio
+from rasterio.transform import from_bounds
+import matplotlib.pyplot as plt
+import os
+
+
+def generate_overlay_from_arrays(
+    landcover_array: np.ndarray,
+    elevation_array: np.ndarray,
+    bounds: tuple,
+    nalcms_colors: dict,
+    out_dir: str = "static",
+    crs: str = "EPSG:4326"
+):
+    """
+    Generate Cesium-ready overlays (PNG + .wld) from landcover and elevation arrays.
+
+    Parameters
+    ----------
+    landcover_array : np.ndarray
+        2D array of landcover class IDs (integers).
+    elevation_array : np.ndarray
+        2D array of elevation values (same shape as landcover_array).
+    bounds : tuple
+        (minx, miny, maxx, maxy) in geographic coordinates (lon/lat).
+    nalcms_colors : dict
+        Mapping from class ID to hex color (e.g., {1:"#476BA0", 2:"#D1DEF0", ...}).
+    out_dir : str
+        Output directory to save overlay PNGs and world files.
+    crs : str
+        Coordinate Reference System for georeferencing (default EPSG:4326).
+    """
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    H, W = landcover_array.shape
+    assert elevation_array.shape == (H, W), "Arrays must have the same shape."
+
+    minx, miny, maxx, maxy = bounds
+    transform = from_bounds(minx, miny, maxx, maxy, W, H)
+
+    # --- Convert landcover IDs to RGB ---
+    rgb = np.zeros((H, W, 3), dtype=np.uint8)
+    for k, hex_color in nalcms_colors.items():
+        mask = landcover_array == k
+        if np.any(mask):
+            rgb[mask] = np.array(
+                [int(hex_color[i:i+2], 16) for i in (1, 3, 5)],
+                dtype=np.uint8
+            )
+
+    # --- Write GeoTIFF (optional, for GIS validation) ---
+    with rasterio.open(
+        os.path.join(out_dir, "landcover_overlay.tif"),
+        "w",
+        driver="GTiff",
+        height=H,
+        width=W,
+        count=3,
+        dtype=rgb.dtype,
+        crs=crs,
+        transform=transform,
+    ) as dst:
+        for i in range(3):
+            dst.write(rgb[..., i], i + 1)
+
+    # --- Save PNG (for Cesium) ---
+    plt.imsave(os.path.join(out_dir, "landcover_overlay.png"), rgb)
+
+    # --- Save elevation as colorized PNG ---
+    plt.imsave(
+        os.path.join(out_dir, "elevation_overlay.png"),
+        elevation_array,
+        cmap="terrain"
+    )
+
+    # --- Write World Files (.wld) for Cesium georeferencing ---
+    pixel_width = (maxx - minx) / W
+    pixel_height = (miny - maxy) / H  # north-up → negative Y step
+    for name in ["landcover_overlay", "elevation_overlay"]:
+        with open(os.path.join(out_dir, f"{name}.wld"), "w") as f:
+            f.write(f"{pixel_width}\n0.0\n0.0\n{pixel_height}\n{minx}\n{maxy}\n")
+
+    print(f"✅ Overlays saved to '{out_dir}'")
+
+
+import numpy as np
+import geopandas as gpd
+from shapely.geometry import Polygon
+from rasterio import features
+from rasterio.transform import from_bounds
+from PIL import Image
+
+from scipy.spatial import Voronoi, voronoi_plot_2d
+
+def generate_voronoi_overlay(vor, bounds,  out_png="static/voronoi_overlay.png", shape=(1024, 1024)):
+    """
+    Rasterize Voronoi polygons into a color-coded overlay PNG.
+
+    Parameters
+    ----------
+    vor : scipy.spatial.Voronoi
+        Voronoi object containing vertices and regions.
+    bounds : tuple
+        (minx, miny, maxx, maxy) of your AOI (in lon/lat).
+    attr_values : list or np.ndarray, optional
+        Per-point attribute (e.g., elevation mean or landcover id) for coloring.
+        Must match number of input points (len(vor.points)).
+    out_png : str
+        Path to save PNG.
+    shape : tuple
+        (H, W) output raster size.
+    """
+    H, W = shape
+    minx, miny, maxx, maxy = bounds
+    transform = from_bounds(minx, miny, maxx, maxy, W, H)
+
+    print(f"⏳ Generating Voronoi overlay ({W}×{H})...")
+    import matplotlib.image as mpimg
+
+    fig, ax = plt.subplots(figsize=(W/300, H/300))
+    # img = mpimg.imread("static/landcover_overlay.png")
+    # ax.imshow(img, origin='lower')
+
+    voronoi_plot_2d(vor, ax=ax, show_vertices=False, show_points=False, line_colors="black", line_width=0.7)
+    
+    ax.set_xlim(0, W)
+    ax.set_ylim(H, 0)  # invert Y to match image orientation
+    ax.set_xticks([])
+    ax.set_yticks([])
+    plt.tight_layout(pad=0)
+    plt.savefig(out_png, dpi=300, transparent=True)
+    plt.close(fig)
+    print(f"✅ Saved Voronoi overlay plot: {out_png}")
+
+    # Image.fromarray(img).save(out_png)
+    # print(f"✅ Saved {out_png}")
+
+    # Write .wld file for Cesium alignment
+    pixel_width = (maxx - minx) / W
+    pixel_height = (miny - maxy) / H
+    with open(out_png.replace(".png", ".wld"), "w") as f:
+        f.write(f"{pixel_width}\n0.0\n0.0\n{pixel_height}\n{minx}\n{maxy}\n")
+
+    print(f"🗺️  Saved world file: {out_png.replace('.png', '.wld')}")
+
+
+
+
+
+def generate_voronoi_seeds_overlay(vor, bounds, out_png="static/voronoi_seeds_overlay.png", shape=(1024, 1024)):
+    """
+    Rasterize Voronoi polygons into a color-coded overlay PNG.
+
+    Parameters
+    ----------
+    vor : scipy.spatial.Voronoi
+        Voronoi object containing vertices and regions.
+    bounds : tuple
+        (minx, miny, maxx, maxy) of your AOI (in lon/lat).
+    attr_values : list or np.ndarray, optional
+        Per-point attribute (e.g., elevation mean or landcover id) for coloring.
+        Must match number of input points (len(vor.points)).
+    out_png : str
+        Path to save PNG.
+    shape : tuple
+        (H, W) output raster size.
+    """
+    H, W = shape
+    minx, miny, maxx, maxy = bounds
+    transform = from_bounds(minx, miny, maxx, maxy, W, H)
+
+    print(f"⏳ Generating Voronoi overlay ({W}×{H})...")
+
+    fig, ax = plt.subplots(figsize=(W/300, H/300))
+
+    voronoi_plot_2d(vor, ax=ax, show_vertices=False, show_points=True, point_colors="red", point_size=0.5, line_colors="black", line_width=0.7, line_alpha=0.0)
+
+    points = vor.points
+    # ax.plot(points[:, 0], points[:, 1], 'o', color='red', markersize=0.25)
+    ax.scatter(points[:, 0], points[:, 1], s=1, color="red", edgecolor="white", linewidth=0.3, zorder=5)
+
+
+
+    ax.set_xlim(0, W)
+    ax.set_ylim(H, 0)  # invert Y to match image orientation
+    ax.set_xticks([])
+    ax.set_yticks([])
+    plt.tight_layout(pad=0)
+    plt.savefig(out_png, dpi=300, transparent=True)
+    plt.close(fig)
+    print(f"✅ Saved Voronoi overlay plot: {out_png}")
+
+    # Image.fromarray(img).save(out_png)
+    # print(f"✅ Saved {out_png}")
+
+    # Write .wld file for Cesium alignment
+    pixel_width = (maxx - minx) / W
+    pixel_height = (miny - maxy) / H
+    with open(out_png.replace(".png", ".wld"), "w") as f:
+        f.write(f"{pixel_width}\n0.0\n0.0\n{pixel_height}\n{minx}\n{maxy}\n")
+
+    print(f"🗺️  Saved world file: {out_png.replace('.png', '.wld')}")
+
+
+
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial import Voronoi
+from shapely.geometry import LineString
+from rasterio.transform import from_bounds
+
+def generate_voronoi_neighbor_overlay(vor, bounds, out_png="static/voronoi_graph_overlay.png", shape=(1024, 1024)):
+    """
+    Create a PNG overlay showing Voronoi neighbor edges (ridges).
+
+    Parameters
+    ----------
+    points : ndarray (N, 2)
+        Seed coordinates (lon, lat or projected x, y).
+    bounds : tuple
+        (minx, miny, maxx, maxy) bounding box of area of interest.
+    out_png : str
+        Path to save PNG file.
+    shape : tuple
+        (H, W) image size in pixels.
+    """
+    H, W = shape
+    minx, miny, maxx, maxy = bounds
+    transform = from_bounds(minx, miny, maxx, maxy, W, H)
+
+    # vor = Voronoi(points)
+    points = vor.points
+
+    print(f"⏳ Generating Voronoi neighbor overlay ({W}×{H})...")
+
+    fig, ax = plt.subplots(figsize=(W/300, H/300), dpi=300)
+
+    for (i, j) in vor.ridge_points:
+        p1 = points[i]
+        p2 = points[j]
+        ax.plot(
+            [p1[0], p2[0]],
+            [p1[1], p2[1]],
+            color="cyan",
+            linewidth=0.7,
+            alpha=0.9
+        )
+
+
+    # voronoi_plot_2d(vor, ax=ax, show_vertices=False, show_points=True, point_colors="red", point_size=0.5, line_colors="black", line_width=0.7, line_alpha=0.0)
+
+    # Optionally draw the seed points
+    # ax.scatter(points[:, 0], points[:, 1], s=6, color="red", edgecolor="white", linewidth=0.3, zorder=5)
+
+    ax.set_xlim(0, W)
+    ax.set_ylim(H, 0)
+    ax.axis("off")
+    plt.tight_layout(pad=0)
+
+    plt.savefig(out_png, dpi=300, transparent=True)
+    plt.close(fig)
+    print(f"✅ Saved Voronoi neighbor overlay PNG → {out_png}")
+
+    # --- Save world file for Cesium/georeferencing ---
+    pixel_width = (maxx - minx) / W
+    pixel_height = -(maxy - miny) / H  # negative to match north-up images
+    wld_path = out_png.replace(".png", ".wld")
+    with open(wld_path, "w") as f:
+        f.write(f"{pixel_width}\n0.0\n0.0\n{pixel_height}\n{minx}\n{maxy}\n")
+    print(f"🗺️  Saved world file: {wld_path}")
+
+
+
+
+def generate_georef_overlays():
+    with open("./samples/map_1_data_with_voronoi.pkl", "rb") as f:
+        map_1_data = pickle.load(f)
+    print(map_1_data.keys())
+    dem_array1 = map_1_data['dem_array']
+    landcover_array1 = map_1_data['landcover_array']
+    sat_image_array1 = map_1_data['sat_image_array']
+    # all_paths_1 = map_1_data['all_paths']
+    vor = map_1_data['voronoi']
+    # rb_planner_map_1 = map_1_data['rb_planner_map']
+    # start_coord_1= map_1_data['start_coord']
+    # goal_coord_1= map_1_data['goal_coord']
+
+    import rasterio
+    from rasterio.transform import xy
+
+    with rasterio.open("./samples/nasadem_bbox.tif") as src:
+        transform = src.transform
+        dem = src.read(1)
+        crs = src.crs
+        H, W = src.shape
+        bounds = src.bounds
+
+
+
+
+    # # Assuming you already have rb_current.voronoi for one of your decompositions
+    # rb_current = rb_map_1["Boundary"]  # example key
+    # vor = rb_current.voronoi
+
+
+    # new_map_data = {}
+    # new_map_data['dem_array'] = dem_array1
+    # new_map_data['landcover_array'] = landcover_array1
+    # new_map_data['sat_image_array'] = sat_image_array1
+    # new_map_data['voronoi'] = vor
+    # new_map_data['transform'] = transform
+    # new_map_data['crs'] = str(crs)
+    # new_map_data['bounds'] = (bounds.left, bounds.bottom, bounds.right, bounds.top)
+
+    # with open("static/map_1_data_with_voronoi.pkl", "wb") as f:
+    #     pickle.dump(new_map_data, f)
+
+    generate_voronoi_neighbor_overlay(
+        vor=vor,
+        bounds=(bounds.left, bounds.bottom, bounds.right, bounds.top),
+        out_png="static/voronoi_graph_overlay.png",
+        shape=dem_array1.shape
+    )
+
+
+
+    generate_overlay_from_arrays(
+        landcover_array=landcover_array1,
+        elevation_array=dem_array1,
+        bounds=(bounds.left, bounds.bottom, bounds.right, bounds.top),
+        nalcms_colors=NALCMS_COLORS,
+        out_dir="static",
+        crs=str(crs)
+    )
+
+    generate_voronoi_overlay(
+        vor=vor,
+        bounds=(bounds.left, bounds.bottom, bounds.right, bounds.top),
+        out_png="static/voronoi_overlay.png",
+        shape=dem_array1.shape
+    )
+
+    generate_voronoi_seeds_overlay(
+        vor=vor,
+        bounds=(bounds.left, bounds.bottom, bounds.right, bounds.top),
+        out_png="static/voronoi_seeds_overlay.png",
+        shape=dem_array1.shape
+    )
+
+
+
+
+def save_voronoi_graph_geojson_old():
 
     # Your bounding box: [lat_min, lon_min, lat_max, lon_max]
     bbox_bound = [34.202242, -116.71692, 34.753553, -115.71606]
@@ -680,6 +1177,175 @@ def save_polygon_geojson():
         print(rb_current.all_output)
         vor = rb_current.voronoi
         print("Shape", landcover_array1.shape)
+
+
+    # generate voronoi neighbor graph
+    import json
+    from scipy.spatial import Voronoi
+
+    # Suppose you already have your Voronoi object
+    # vor = Voronoi(points)
+
+    edges = set()
+
+    # Each ridge connects two points: point_indices = (p1, p2)
+    for (p1, p2), ridge_vertices in zip(vor.ridge_points, vor.ridge_vertices):
+        # Skip ridges that extend to infinity (open)
+        if -1 in ridge_vertices:
+            continue
+        # Add bidirectional edge (smallest index first for uniqueness)
+        edges.add(tuple(sorted((int(p1), int(p2)))))
+
+    # Convert to adjacency list
+    adj = {}
+    for i, j in edges:
+        adj.setdefault(i, []).append(j)
+        adj.setdefault(j, []).append(i)
+
+    # Optional: convert to simple list of pairs [[i, j], ...] for Cesium
+    adj_json = {str(k): [int(x) for x in v] for k, v in adj.items()}
+    edge_list = [[int(i), int(j)] for i, j in edges]
+
+    # ✅ Save both versions
+    with open("static/voronoi_adj.json", "w") as f:
+        json.dump(adj, f, indent=2)
+
+    with open("static/voronoi_edges.json", "w") as f:
+        json.dump(edge_list, f, indent=2)
+
+    print(f"✅ Saved {len(edges)} edges connecting {len(adj)} nodes.")
+
+
+
+
+import json
+import pickle
+import numpy as np
+from shapely.geometry import mapping, LineString, Point
+import geopandas as gpd
+from scipy.spatial import Voronoi
+
+def save_voronoi_graph_geojson():
+    # Bounding box [lat_min, lon_min, lat_max, lon_max]
+    bbox_bound = [34.202242, -116.71692, 34.753553, -115.71606]
+    lat_min, lon_min, lat_max, lon_max = bbox_bound
+
+    with open("../map_1_data.pkl", "rb") as f:
+        map_1_data = pickle.load(f)
+
+    print(map_1_data["rb_map"].keys())
+    vor = map_1_data["rb_map"]["Boundary"].voronoi  # adjust key if needed
+    print(f"Voronoi points: {vor.points.shape}")
+
+    # ---------------------------------------------------
+    # 1️⃣ Extract all finite edges (no infinite ridges)
+    # ---------------------------------------------------
+    edges = []
+    for (p1, p2), ridge_vertices in zip(vor.ridge_points, vor.ridge_vertices):
+        if -1 in ridge_vertices:
+            continue  # skip infinite edges
+
+        v1, v2 = vor.vertices[ridge_vertices]
+        edges.append((p1, p2, v1, v2))
+
+    print(f"Total finite edges: {len(edges)}")
+
+    # ---------------------------------------------------
+    # 2️⃣ Convert points to geographic coordinates
+    # ---------------------------------------------------
+    # Your pixel coordinates → geographic (lon/lat)
+    H, W = map_1_data["dem_array"].shape
+    lons = np.linspace(lon_min, lon_max, W)
+    lats = np.linspace(lat_min, lat_max, H)
+    # y-axis is inverted in raster coordinates
+    def to_geo(y, x):
+        lon = lons[int(np.clip(x, 0, W - 1))]
+        lat = lats[int(np.clip(H - y - 1, 0, H - 1))]
+        return (float(lon), float(lat))
+
+    # ---------------------------------------------------
+    # 3️⃣ Build GeoDataFrames for nodes & edges
+    # ---------------------------------------------------
+    node_geoms = []
+    node_records = []
+    for i, (x, y) in enumerate(vor.points):
+        lon, lat = to_geo(y, x)
+        node_geoms.append(Point(lon, lat))
+        node_records.append({"id": int(i)})
+
+    edge_geoms = []
+    edge_records = []
+    for p1, p2, v1, v2 in edges:
+        # edge between two seed nodes (by their geo-coordinates)
+        lon1, lat1 = to_geo(*vor.points[p1][::-1])
+        lon2, lat2 = to_geo(*vor.points[p2][::-1])
+        edge_geoms.append(LineString([(lon1, lat1), (lon2, lat2)]))
+        edge_records.append({"source": int(p1), "target": int(p2)})
+
+    gdf_nodes = gpd.GeoDataFrame(node_records, geometry=node_geoms, crs="EPSG:4326")
+    gdf_edges = gpd.GeoDataFrame(edge_records, geometry=edge_geoms, crs="EPSG:4326")
+
+    # ---------------------------------------------------
+    # 4️⃣ Combine into one FeatureCollection
+    # ---------------------------------------------------
+    all_features = []
+
+    for _, row in gdf_nodes.iterrows():
+        feat = mapping(row.geometry)
+        feat["properties"] = {"id": row.id, "type": "node"}
+        all_features.append({"type": "Feature", "geometry": feat, "properties": feat["properties"]})
+
+    for _, row in gdf_edges.iterrows():
+        feat = mapping(row.geometry)
+        feat["properties"] = {"source": row.source, "target": row.target, "type": "edge"}
+        all_features.append({"type": "Feature", "geometry": feat, "properties": feat["properties"]})
+
+    feature_collection = {"type": "FeatureCollection", "features": all_features}
+
+    # ---------------------------------------------------
+    # 5️⃣ Save combined GeoJSON
+    # ---------------------------------------------------
+    out_path = "static/voronoi_graph.geojson"
+    with open(out_path, "w") as f:
+        json.dump(feature_collection, f, indent=2)
+
+    print(f"✅ Saved graph with {len(node_geoms)} nodes and {len(edge_geoms)} edges → {out_path}")
+
+
+
+def save_polygon_geojson_old():
+
+    # Your bounding box: [lat_min, lon_min, lat_max, lon_max]
+    bbox_bound = [34.202242, -116.71692, 34.753553, -115.71606]
+    lat_min, lon_min, lat_max, lon_max = bbox_bound
+
+
+    with open("../map_1_data.pkl", "rb") as f:
+        map_1_data = pickle.load(f)
+    print(map_1_data.keys())
+    dem_array1 = map_1_data['dem_array']
+    landcover_array1 = map_1_data['landcover_array']
+    sat_image_array1 = map_1_data['sat_image_array']
+    all_paths_1 = map_1_data['all_paths']
+    rb_map_1 = map_1_data['rb_map']
+    rb_planner_map_1 = map_1_data['rb_planner_map']
+    start_coord_1= map_1_data['start_coord']
+    goal_coord_1= map_1_data['goal_coord']
+
+
+    paths1 = []
+    for decomp in all_paths_1:
+        path, cost, time = all_paths_1[decomp]
+        path_yx = np.array(path)[:, [1,0]]
+        path_with_attributes = (path_yx, cost, time)
+        paths1.append((decomp, path_with_attributes))
+        # print(f"Decomposition: {decomp}, Cost: {cost}, Time: {time}")
+        print(f"Decomposition: {decomp}, Cost: {cost}, Time: {time}")
+        rb_current = rb_map_1[decomp]
+        print(rb_current.all_output)
+        vor = rb_current.voronoi
+        print("Shape", landcover_array1.shape)
+
 
     import rasterio
     from rasterio.transform import xy
@@ -737,16 +1403,135 @@ def save_polygon_geojson():
 
     return
 
-    geo_polygons = clipped_polygons
-
-    # geo_polygons = [pixel_to_geo(poly, transform) for poly in clipped_polygons]
 
 
-    print(f"Number of clipped polygons: {len(geo_polygons)}")
+def save_polygon_geojson():
 
-    gdf_voronoi = gpd.GeoDataFrame(geometry=geo_polygons, crs=crs)
-    gdf_voronoi = gdf_voronoi.to_crs("EPSG:4326")
-    gdf_voronoi.to_file("static/voronoi_3d.geojson", driver="GeoJSON")
+    # Your bounding box: [lat_min, lon_min, lat_max, lon_max]
+    bbox_bound = [34.202242, -116.71692, 34.753553, -115.71606]
+    lat_min, lon_min, lat_max, lon_max = bbox_bound
+
+
+    with open("../map_1_data.pkl", "rb") as f:
+        map_1_data = pickle.load(f)
+    print(map_1_data.keys())
+    dem_array1 = map_1_data['dem_array']
+    landcover_array1 = map_1_data['landcover_array']
+    sat_image_array1 = map_1_data['sat_image_array']
+    all_paths_1 = map_1_data['all_paths']
+    rb_map_1 = map_1_data['rb_map']
+    rb_planner_map_1 = map_1_data['rb_planner_map']
+    start_coord_1= map_1_data['start_coord']
+    goal_coord_1= map_1_data['goal_coord']
+
+
+    paths1 = []
+    for decomp in all_paths_1:
+        path, cost, time = all_paths_1[decomp]
+        path_yx = np.array(path)[:, [1,0]]
+        path_with_attributes = (path_yx, cost, time)
+        paths1.append((decomp, path_with_attributes))
+        # print(f"Decomposition: {decomp}, Cost: {cost}, Time: {time}")
+        print(f"Decomposition: {decomp}, Cost: {cost}, Time: {time}")
+        rb_current = rb_map_1[decomp]
+        print(rb_current.all_output)
+        vor = rb_current.voronoi
+        print("Shape", landcover_array1.shape)
+
+
+    import rasterio
+    from rasterio.transform import xy
+
+    with rasterio.open("../nasadem_bbox.tif") as src:
+        transform_ = src.transform
+        dem = src.read(1)
+        crs = src.crs
+        H, W = src.shape
+
+
+    from shapely.geometry import box
+
+    H, W = dem_array1.shape
+    bbox = box(0, 0, W, H)  # DEM extent as a bounding box polygon
+
+    # ---------------------------------------------------
+    # 2️⃣ Convert points to geographic coordinates
+    # ---------------------------------------------------
+    # Your pixel coordinates → geographic (lon/lat)
+
+    bbox_bound = [34.202242, -116.71692, 34.753553, -115.71606]
+    lat_min, lon_min, lat_max, lon_max = bbox_bound
+
+
+    H, W = map_1_data["dem_array"].shape
+    lons = np.linspace(lon_min, lon_max, W)
+    lats = np.linspace(lat_min, lat_max, H)
+    # y-axis is inverted in raster coordinates
+    def to_geo(y, x):
+        lon = lons[int(np.clip(x, 0, W - 1))]
+        lat = lats[int(np.clip(H - y - 1, 0, H - 1))]
+        return (float(lon), float(lat))
+
+    def to_pixel(lon, lat):
+        # Find nearest pixel coordinates for given lon/lat
+        col = int(np.clip((lon - transform_.c) / transform_.a, 0, W - 1))
+        row = int(np.clip((transform_.f - lat) / -transform_.e, 0, H - 1))
+        return (row, col)
+
+
+
+
+
+    clipped_polygons = []
+    lc_classes = []
+    colors = []
+
+    records = []
+    voronoi_points_3d = []
+    for i, region_index in enumerate(vor.point_region):
+        region = vor.regions[region_index]
+        point = vor.points[i]
+        lon, lat = to_geo(point[1], point[0])
+        col, row = map(int, ~transform_ * (lon, lat))
+        if (0 <= row < dem_array1.shape[0]) and (0 <= col < dem_array1.shape[1]):
+            z = float(dem_array1[row, col])
+        else:
+            z = 0.0
+        voronoi_points_3d.append((lon, lat, z))
+        if not -1 in region and region != []:
+            poly = Polygon([vor.vertices[i] for i in region])
+            clipped = poly.intersection(bbox)  # clip to DEM bounds
+            if not clipped.is_empty:
+                # clipped_polygons.append(clipped)
+
+                coords = []
+                lc_curr = []
+                for x_pix, y_pix in np.array(clipped.exterior.coords):
+                    # pixel → world (lon, lat)
+                    lon, lat = to_geo(y_pix, x_pix) # transform * (x_pix, y_pix)
+                    # sample DEM height (nearest pixel)
+                    col, row = map(int, ~transform_ * (lon, lat))
+                    if (0 <= row < dem_array1.shape[0]) and (0 <= col < dem_array1.shape[1]):
+                        z = float(dem_array1[row, col])
+                    else:
+                        z = 0.0
+                    coords.append((lon, lat, z))
+                    # lc_curr.append(landcover_array1[row, col])
+                clipped_polygons.append(Polygon(coords))
+
+    
+    print("Start assigning landcover...")
+    # gdf = assign_landcover_from_array(clipped_polygons, landcover_array1, NALCMS_COLORS, crs, transform=transform)
+    gdf = assign_landcover_elevation_from_arrays(clipped_polygons, voronoi_points_3d, landcover_array1, dem_array1, NALCMS_COLORS, crs, transform=transform_)
+    gdf = gdf.to_crs("EPSG:4326")
+
+    print("Saving voronoi_3d.geojson...")
+
+    gdf.to_file("static/voronoi_3d.geojson", driver="GeoJSON")
+    print("Saved voronoi_3d.geojson")
+
+    return
+
 
 
 
@@ -927,11 +1712,11 @@ app = Flask(__name__)
 
 
 
-from rasterio.windows import from_bounds
+from rasterio.windows import from_bounds as from_bounds_windows
 
 def crop_dem(dem_path, bounds):
     with rasterio.open(dem_path) as src:
-        window = from_bounds(*bounds, transform=src.transform)
+        window = from_bounds_windows(*bounds, transform=src.transform)
         dem = src.read(1, window=window).astype(float)
         dem[dem < -1000] = np.nan
         return dem, src.transform
@@ -940,12 +1725,12 @@ def crop_dem(dem_path, bounds):
 def index2():
     dem_path = "nasadem_bbox.tif"
 
-    from rasterio.windows import from_bounds
+    from rasterio.windows import from_bounds  as from_bounds_windows
 
     # minx, miny, maxx, maxy = [34.202242, -116.71692, 34.753553, -115.71606]
 
     with rasterio.open(dem_path) as src:
-        # window = from_bounds(minx, miny, maxx, maxy, src.transform)
+        # window = from_bounds_windows(minx, miny, maxx, maxy, src.transform)
         # dem = src.read(1, window=window).astype(float)
         dem = src.read(1).astype(float)
         print("DEM shape:", dem.shape)

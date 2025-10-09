@@ -11,8 +11,23 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   shouldAnimate: true,
   timeline: true,
   animation: true,
+  sceneModePicker: false,
+  baseLayerPicker: true,
+  scene3DOnly: true,
+  // ✅ Required for clamped polylines:
+  contextOptions: {
+    requestWebgl2: true
+  },
+  scene: {
+    groundPrimitives: true
+  }
+
 });
-// const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+viewer.scene.globe.depthTestAgainstTerrain = true;
+viewer.scene.globe.enableLighting = true;
+
 
 //Pranay: not added buildings for now
 // // Add Cesium OSM buildings to the scene as our example 3D Tileset.
@@ -26,6 +41,9 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
 
 initViewer().then(async v => {
     viewer = v;
+
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1s sleep
+
 const west = -116.71692;
 const south = 34.202242;
 const east = -115.71606;
@@ -54,6 +72,12 @@ const bboxEntity = viewer.entities.add({
   },
 });
 
+function toggle_bbox_outline(show = true) {
+  if (bboxEntity) bboxEntity.show = show;
+  viewer.scene.requestRender();
+}
+
+
 
 
 
@@ -66,6 +90,25 @@ var rectangle = Cesium.Rectangle.fromDegrees(
     north    // north (lat_max)
 );
 
+// // Get center of rectangle
+// var center = Cesium.Rectangle.center(rectangle);
+// var target = Cesium.Cartesian3.fromRadians(center.longitude, center.latitude, 0);
+
+// // Make a bounding sphere around the center
+// var sphere = new Cesium.BoundingSphere(target, 60000.0);  // radius ~ controls how far away
+
+// // Fly with custom heading/pitch/range
+// viewer.camera.flyToBoundingSphere(sphere, {
+//   duration: 4,
+//   offset: new Cesium.HeadingPitchRange(
+//     Cesium.Math.toRadians(45),   // heading → rotate east/north
+//     Cesium.Math.toRadians(-30),  // pitch → tilt downward
+//     100000                       // range → distance away from target
+//   )
+// });
+
+
+async function zoom_to_custom_height_1() {
 // Get center of rectangle
 var center = Cesium.Rectangle.center(rectangle);
 var target = Cesium.Cartesian3.fromRadians(center.longitude, center.latitude, 0);
@@ -75,25 +118,26 @@ var sphere = new Cesium.BoundingSphere(target, 60000.0);  // radius ~ controls h
 
 // Fly with custom heading/pitch/range
 viewer.camera.flyToBoundingSphere(sphere, {
-  duration: 4,
+  duration: 2,
   offset: new Cesium.HeadingPitchRange(
     Cesium.Math.toRadians(45),   // heading → rotate east/north
     Cesium.Math.toRadians(-30),  // pitch → tilt downward
-    100000                       // range → distance away from target
+    150000                       // range → distance away from target
   )
 });
 
+}
 
 
 
 // Define your tasks (lon, lat)
-var tasks = [
+var tasks_old = [
   [-116.6, 34.3],
  [-116.2, 34.5],
  [-115.9, 34.6]
 ];
 
-async function show_tasks(tasks)
+async function show_tasks(tasks, flyToAOI = true)
 {
 
 // Convert tasks into Cesium Cartographic positions (lon/lat → radians)
@@ -125,11 +169,11 @@ Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, cartographicTasks).then
   });
 
 
-  // Fly to bounding box first
-  var rectangle = Cesium.Rectangle.fromDegrees(
-    -116.71692, 34.202242, -115.71606, 34.753553
-  );
-
+  // // Fly to bounding box first
+  // var rectangle = Cesium.Rectangle.fromDegrees(
+  //   -116.71692, 34.202242, -115.71606, 34.753553
+  // );
+  if (!flyToAOI) return;
   viewer.camera.flyTo({
     destination: rectangle,
     duration: 3,
@@ -183,7 +227,7 @@ function flyTasksSequentially(viewer, taskPositions, index) {
 
 
 // --- Utility to crop terrain + imagery ---
-function applyAOIMask(rect) {
+async function applyAOIMask(rect) {
 
 
 // --- Initial setup ---
@@ -198,7 +242,7 @@ viewer.scene.backgroundColor = Cesium.Color.BLACK; // pure black background
 }
 
 // --- Utility to remove AOI mask (show full Earth) ---
-function clearAOIMask() {
+async function clearAOIMask() {
 
 // --- Initial setup ---
 viewer.scene.globe.showGroundAtmosphere = true; // no blue fog
@@ -216,24 +260,24 @@ viewer.scene.backgroundColor = Cesium.Color.BLACK; // pure black background
  * Preloads Voronoi polygons and centroids.
  * Stores both layers hidden and ready for toggling.
  */
-let voronoiLayer = null;
+// let voronoiLayer = null;
 let centroidLayer = null;
 let voronoiReady = false;
 
 /**
  * Preload Voronoi polygons + precompute elevation-based colors/materials once.
  */
-async function preloadVoronoi_seeds(viewer) {
-  console.log("🔄 Loading Voronoi data...");
-  //https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main
-  const ds = await Cesium.GeoJsonDataSource.load(
-    "/static/voronoi_3d.geojson",
-    { clampToGround: true }
-  );
+async function preloadVoronoi_seeds(viewer, voronoiLayer) {
+  // console.log("🔄 Loading Voronoi data...");
+  // //https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main
+  // const ds = await Cesium.GeoJsonDataSource.load(
+  //   "/static/voronoi_3d.geojson",
+  //   { clampToGround: true }
+  // );
 
-  viewer.dataSources.add(ds);
-  voronoiLayer = ds;
-  const entities = ds.entities.values;
+  // viewer.dataSources.add(ds);
+  // voronoiLayer = ds;
+  const entities = voronoiLayer.entities.values;
 
   // --- Precompute min/max elevation range ---
   let minElev = Infinity, maxElev = -Infinity;
@@ -248,10 +292,12 @@ async function preloadVoronoi_seeds(viewer) {
   // --- Build centroid (seed) layer ---
   centroidLayer = new Cesium.CustomDataSource("centroids");
   const allPositions = [];
+  const centroidMap = {}; // id → entity
 
   // --- Precompute elevation color/material once ---
-  for (let e of entities) {
-    if (!e.polygon) continue;
+  // for (let e of entities) {
+  entities.forEach((e, i) => {
+    // if (!e.polygon) continue;
 
     const elevVal = e.properties?.elevation_mean?.getValue?.() ||
                     e.properties?.elevation_mean || 0;
@@ -282,7 +328,7 @@ async function preloadVoronoi_seeds(viewer) {
     0;
 
     const hierarchy = e.polygon.hierarchy?.getValue?.();
-    if (!hierarchy?.positions?.length) continue;
+    // if (!hierarchy?.positions?.length) continue;
     const positions = hierarchy.positions;
 
     // const hierarchy = e.polygon.hierarchy.getValue();
@@ -297,6 +343,10 @@ async function preloadVoronoi_seeds(viewer) {
       );
       allPositions.push(elevated);
 
+
+      centroidMap[i] = elevated;
+      // console.log(`Polygon ${i} centroid: ${elevated}, ${carto.longitude}, ${carto.latitude}`);
+
       centroidLayer.entities.add({
         position: elevated,
         point: {
@@ -308,7 +358,7 @@ async function preloadVoronoi_seeds(viewer) {
         show: true,
       });
     }
-  }
+  });
 
   viewer.dataSources.add(centroidLayer);
 
@@ -323,8 +373,12 @@ async function preloadVoronoi_seeds(viewer) {
     ),
   });
 
+  
+
   voronoiReady = true;
   console.log("✅ Voronoi polygons + elevation colors preloaded");
+
+  return centroidMap;
 }
 
 /**
@@ -400,16 +454,12 @@ function addDynamicToggles(viewer) {
     document.body.appendChild(toggleContainer);
   }
 
-  // === Landcover Toggle ===
-  makeToggle("Landcover Layer", "🟢", "⚫", (show) => {
-    if (viewer._landcoverLayer) viewer._landcoverLayer.show = show;
-  });
-
-  // === Elevation Toggle ===
-  makeToggle("Elevation Layer", "🟢", "⚫", (show) => {
-    if (viewer._elevationLayer) viewer._elevationLayer.show = show;
-  });
 }
+
+
+// --- Create Toggle UI ---
+addDynamicToggles(viewer);
+
 
 
 
@@ -459,81 +509,22 @@ function add_map_layers(viewer) {
   viewer._elevationLayer = elevationLayer;
 
 
+  // === Landcover Toggle ===
+  makeToggle("Landcover Layer", "🟢", "⚫", (show) => {
+    if (viewer._landcoverLayer) viewer._landcoverLayer.show = show;
+  });
 
-  // Add your overlay as a draped imagery layer
-  const landcoverOverlay = viewer.imageryLayers.addImageryProvider(
-    new Cesium.SingleTileImageryProvider({
-      url: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/landcover_overlay.png",
-      rectangle: rectangle,
-    })
-  );
-
-  // Optional: adjust transparency
-  landcoverOverlay.alpha = 0.7;
-  landcoverOverlay.brightness = 1.0;
-
-  viewer._landcoverOverlay = landcoverOverlay;
-
-
-  const elevationOverlay = viewer.imageryLayers.addImageryProvider(
-    new Cesium.SingleTileImageryProvider({
-      url: "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/elevation_overlay.png",
-      rectangle: rectangle,
-    })
-  );
-
-  // Optional: adjust transparency
-  elevationOverlay.alpha = 0.7;
-  elevationOverlay.brightness = 1.0;
-
-  viewer._elevationOverlay = elevationOverlay;
-
-
-  const voronoiOverlay = viewer.imageryLayers.addImageryProvider(
-    new Cesium.SingleTileImageryProvider({
-      url: "/static/voronoi_overlay.png",
-      rectangle: rectangle,
-    })
-  );
-
-  // Optional: adjust transparency
-  voronoiOverlay.alpha = 0.7;
-  voronoiOverlay.brightness = 1.0;
-
-  viewer._voronoiOverlay = voronoiOverlay;
-
-
-
-  // --- Create Toggle UI ---
-  addDynamicToggles(viewer);
-}
-
-
-function add_overlay(viewer, imageUrl, rectangle, layer_name = "Overlay") {
-  const overlay = viewer.imageryLayers.addImageryProvider(
-    new Cesium.SingleTileImageryProvider({
-      url: imageUrl,
-      rectangle: rectangle,
-    })
-  );
-
-  // Optional: adjust transparency
-  overlay.alpha = 0.7;
-  overlay.brightness = 1.0;
-
-  // === Voronoi Toggle ===
-  makeToggle(layer_name, "🟢", "⚫", (show) => {
-    if (overlay) {
-      overlay.show = show;
-    }
+  // === Elevation Toggle ===
+  makeToggle("Elevation Layer", "🟢", "⚫", (show) => {
+    if (viewer._elevationLayer) viewer._elevationLayer.show = show;
   });
 
 
-  return overlay;
+
 }
 
 
-viewer._voronoiSeedOverlay = add_overlay(viewer, "/static/voronoi_seeds_overlay.png", rectangle, "Seed Texture");
+
 
 // 🟢 Define all your polygon styles in a dictionary
 const POLYGON_STYLES = {
@@ -541,27 +532,28 @@ const POLYGON_STYLES = {
     getColor: (entity) => {
       const lc = entity.properties?.landcover?.getValue?.() || entity.properties?.landcover || 0;
     // 🌎 NALCMS (North American Land Cover Classification System) — color map
+    
         const NALCMS_COLORS = {
-        1:  "#033e00", // Temperate or sub-polar needleleaf forest
-        2:  "#939b71", // Sub-polar taiga needleleaf forest
-        3:  "#196d12", // Tropical or sub-tropical broadleaf evergreen forest
-        4:  "#1fab01", // Tropical or sub-tropical broadleaf deciduous forest
-        5:  "#5b725c", // Temperate or sub-polar broadleaf deciduous forest
-        6:  "#6b7d2c", // Mixed forest
-        7:  "#b29d29", // Tropical or sub-tropical shrubland
-        8:  "#b48833", // Temperate or sub-polar shrubland
-        9:  "#e9da5d", // Tropical or sub-tropical grassland
-        10: "#e0cd88", // Temperate or sub-polar grassland
-        11: "#a07451", // Sub-polar or polar shrubland-lichen-moss
-        12: "#bad292", // Sub-polar or polar grassland-lichen-moss
-        13: "#3f8970", // Sub-polar or polar barren-lichen-moss
-        14: "#6ca289", // Wetland
-        15: "#e6ad6a", // Cropland
-        16: "#a9abae", // Barren land
-        17: "#db2126", // Urban and built-up
-        18: "#4c73a1", // Water
-        19: "#fff7fe", // Snow and ice
-        };
+              1:  '#033e00',
+              2:  '#939b71',
+              3:  '#196d12',
+              4:  '#1fab01',
+              5:  '#5b725c',
+              6:  '#6b7d2c',
+              7:  '#b29d29',
+              8:  '#b48833',
+              9:  '#e9da5d',
+              10: '#e0cd88',
+              11: '#a07451',
+              12: '#bad292',
+              13: '#3f8970',
+              14: '#6ca289',
+              15: '#e6ad6a',
+              16: '#a9abae',
+              17: '#db2126',
+              18: '#4c73a1',
+              19: '#fff7fe',
+          };
 
 
       return Cesium.Color.fromCssColorString(NALCMS_COLORS[lc] || "#cccccc").withAlpha(1.0);
@@ -806,181 +798,113 @@ function toggleBlackOutlines(viewer, show = true) {
 }
 
 
-makeToggle("Voronoi Outlines", "🟢", "⚫", (show) => {
-  toggleBlackOutlines(viewer, show);
-});
-
-
-await add_map_layers(viewer);
-
-
-// === Voronoi Toggle ===
-makeToggle("Voronoi Layer", "🟢", "⚫", (show) => {
-    toggleElevationVoronoi(show);
-    
-  });
-
-
-// === seed Toggle ===
-makeToggle("Voronoi Seed", "🟢", "⚫", (show) => {
-    toggleSeeds(show);
-  });
-
-
-// --- Track mask state ---
-
-let aoiEnabled = false;
-makeToggle("AOI Mask", "🟢", "🔴", (aoiEnabled) =>   {   
-  if (aoiEnabled) {
-    // const rectangle = Cesium.Rectangle.fromDegrees(
-    //   -116.71692, 34.202242, -115.71606, 34.753553
-    // );
-    applyAOIMask(rectangle);
-  } else {
-    clearAOIMask();
-  }
-  aoiEnabled = !aoiEnabled;
-});
+// makeToggle("Voronoi Outlines", "🟢", "⚫", (show) => {
+//   toggleBlackOutlines(viewer, show);
+// });
 
 
 
 
-async function loadVoronoiWireframe_old(viewer, geojsonUrl, color = Cesium.Color.CYAN, width = 1.0) {
-  const response = await fetch(geojsonUrl);
-  const geojson = await response.json();
 
-  const lineInstances = [];
+async function loadVoronoiWireframe(viewer, graphUrl, centroidMap,
+  color = Cesium.Color.CYAN, width = 1.0, scaleZ = 4.0) {
 
-  // Extract only LineStrings from GeoJSON (edges)
-  for (const feature of geojson.features) {
-    if (feature.geometry.type !== "LineString") continue;
-    const coords = feature.geometry.coordinates;
-    const positions = Cesium.Cartesian3.fromDegreesArray(coords.flat());
-
-    lineInstances.push(
-      new Cesium.GeometryInstance({
-        geometry: new Cesium.PolylineGeometry({
-          positions,
-          width,
-          vertexFormat: Cesium.PolylineColorAppearance.VERTEX_FORMAT,
-        }),
-        attributes: {
-          color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
-        },
-      })
-    );
-  }
-
-  // ✅ Build one batched primitive
-  const primitive = new Cesium.Primitive({
-    geometryInstances: lineInstances,
-    appearance: new Cesium.PolylineColorAppearance({
-      translucent: true,
-    }),
-    asynchronous: false,
-  });
-
-  viewer.scene.primitives.add(primitive);
-  console.log(`✅ Wireframe graph loaded: ${lineInstances.length} edges`);
-
-  return primitive;
-}
-
-
-async function loadVoronoiWireframe(viewer, geojsonUrl, color = Cesium.Color.CYAN, width = 1.0, height = 2000.0) {
   try {
-    const response = await fetch(geojsonUrl);
-    const geojson = await response.json();
-
+    const resp = await fetch(graphUrl);
+    const geojson = await resp.json();
     const lineInstances = [];
-    const pointInstances = [];
+
     for (const feature of geojson.features) {
       if (feature.geometry.type !== "LineString") continue;
 
-      const coords = feature.geometry.coordinates;
-      // Flatten & convert to Cartesian at fixed height
-      const positions = [];
-      for (const [lon, lat] of coords) {
-        positions.push(
-          Cesium.Cartesian3.fromDegrees(lon, lat, height)
-        );
-      }
+      const props = feature.properties || {};
+      // const srcId = props.src_id ?? props.source ?? 0;
+      // const dstId = props.dst_id ?? props.target ?? 0;
 
-      lineInstances.push(
-        new Cesium.GeometryInstance({
-          geometry: new Cesium.PolylineGeometry({
-            positions,
-            width,
-            vertexFormat: Cesium.PolylineColorAppearance.VERTEX_FORMAT,
-          }),
-          attributes: {
-            color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
-          },
-        })
+      // const elevSrc = (elevationMap[srcId] ?? 0) * scaleZ;
+      // const elevDst = (elevationMap[dstId] ?? 0) * scaleZ;
+
+      // console.log(`Edge ${srcId}→${dstId} elevations: ${elevSrc.toFixed(1)} → ${elevDst.toFixed(1)} m`);
+
+      const coords = feature.geometry.coordinates;
+
+
+      cartographicTasks = coords.map(t =>
+        Cesium.Cartographic.fromDegrees(t[0], t[1])
       );
-      // Optional: add points at vertices
-      // for (const pos of positions) {
-      //   pointInstances.push(
-      //     new Cesium.GeometryInstance({
-      //       geometry: new Cesium.PointGeometry({
-      //         position: pos,
-      //         pixelSize: 4.0,
-      //       }),
-      //       attributes: {
-      //         color: Cesium.Color.RED,
-      //       },
-      //     })
-      //   );
-      // }
+
+      console.log('feature coords:', coords[0], coords[1]);
+      console.log('cartographicTasks:', cartographicTasks[0], cartographicTasks[1]);
+      // Query terrain heights for all tasks
+      Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, cartographicTasks).then(function(updatedPositions) {
+        // Add task markers with elevation
+        const positions = [];
+        updatedPositions.forEach((pos, i) => {
+
+          positions.push(Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, pos.height*4.0 + 2));
+        });
+
+
+          lineInstances.push(
+            new Cesium.GeometryInstance({
+              geometry: new Cesium.PolylineGeometry({
+                positions,
+                width,
+                vertexFormat: Cesium.PolylineColorAppearance.VERTEX_FORMAT,
+              }),
+              attributes: {
+                color: Cesium.ColorGeometryInstanceAttribute.fromColor(color),
+              },
+            })
+          );
+
+      });
+
+
     }
 
-    if (lineInstances.length === 0) {
-      console.warn("⚠️ No LineString features found in GeoJSON:", geojsonUrl);
+
+      // Convert tasks into Cesium Cartographic positions (lon/lat → radians)
+      var cartographicTasks = tasks.map(t =>
+        Cesium.Cartographic.fromDegrees(t[0], t[1])
+      );
+
+
+    if (!lineInstances.length) {
+      console.warn("⚠️ No LineString features found in graph:", graphUrl);
       return null;
     }
 
     const primitive = new Cesium.Primitive({
       geometryInstances: lineInstances,
-      appearance: new Cesium.PolylineColorAppearance({
-        translucent: true,
-      }),
+      appearance: new Cesium.PolylineColorAppearance({ translucent: true }),
       asynchronous: false,
     });
 
-    // const pointPrimitive = new Cesium.Primitive({
-    //   geometryInstances: pointInstances,
-    //   appearance: new Cesium.PerInstanceColorAppearance({
-    //     translucent: false,
-    //   }),
-    //   asynchronous: false,
-    // });
-
-    // viewer.scene.primitives.add(pointPrimitive);
-
     viewer.scene.primitives.add(primitive);
-    console.log(`✅ Wireframe graph loaded: ${lineInstances.length} edges at height ${height} m`);
+    console.log(`✅ Wireframe loaded: ${lineInstances.length} edges using elevation lookup`);
     return primitive;
 
   } catch (err) {
-    console.error("❌ Failed to load wireframe GeoJSON:", err);
+    console.error("❌ Failed to load Voronoi wireframe:", err);
   }
 }
 
 
 
-async function addVoronoiGraph(viewer, graphUrl = "/static/voronoi_graph.geojson") {
+async function addVoronoiGraph(viewer, graphUrl = "/static/voronoi_graph.geojson", centroidMap = null) {
 
-const wire = await loadVoronoiWireframe(
-  viewer,
-  graphUrl,
-  Cesium.Color.CYAN.withAlpha(0.8),
-  1.5
-);
+
+(async () => {
+  const wire = await loadVoronoiWireframe(viewer, "/static/voronoi_graph.geojson", centroidMap,
+                             Cesium.Color.CYAN, 1.5, 4.0);
+
 
 viewer._voronoiGraphLayer = wire;
 
 console.log("✅ Voronoi graph overlay added from GeoJSON");
 
+})();
 
 }
 
@@ -998,9 +922,6 @@ function toggleVoronoiGraph(viewer, show = null) {
   console.log(`🔁 Graph layer ${layer.show ? "visible" : "hidden"}`);
   viewer.scene.requestRender();
 }
-makeToggle("Graph", "🟢", "⚫", (show) => {
-  toggleVoronoiGraph(viewer, show);
-});
 
 
 let rectangleEntity = null;
@@ -1018,6 +939,7 @@ let startCartographic = null;
       if (!cartesian) return;
 
       if (!startCartographic) {
+        if (rectangleEntity) viewer.entities.remove(rectangleEntity);
         rectangleEntity = null;
             startCartographic = Cesium.Cartographic.fromCartesian(cartesian);
             endCartographic = null;
@@ -1042,6 +964,8 @@ let startCartographic = null;
 
             startCartographic = null;
             endCartographic = null;
+            handler.destroy();
+            // Optionally, do something with the final rectangle here
     }
 
 
@@ -1096,53 +1020,253 @@ makeToggle("Draw AOI", "🟢", "⚫", (active) => {
     select_bounds_draw(viewer);
   } else {
     // Stop drawing
+    if (rectangleEntity) viewer.entities.remove(rectangleEntity);
   }
 });
 
-function toggleLandcoverOverlay(show) {
-if (viewer._landcoverOverlay) {
-  viewer._landcoverOverlay.show = show;
-  }
+
+
+
+function add_overlay_texture(viewer, imageUrl, rectangle, layer_name = "Overlay", alpha=1.0) {
+  const overlay = viewer.imageryLayers.addImageryProvider(
+    new Cesium.SingleTileImageryProvider({
+      url: imageUrl,
+      rectangle: rectangle,
+    })
+  );
+
+  // Optional: adjust transparency
+  overlay.alpha = alpha;
+  overlay.brightness = 1.0;
+
+  // === Voronoi Toggle ===
+  makeToggle(layer_name, "🟢", "⚫", (show) => {
+    if (overlay) {
+      overlay.show = show;
+    }
+  });
+
+  return overlay;
 }
 
-function toggleElevationOverlay(show) {
-  if (viewer._elevationOverlay) {
-    viewer._elevationOverlay.show = show;
-  }
-}
+// base_url = "https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main/static/";
+base_url = "/static/";
 
-makeToggle("Landcover Texture", "🟢", "⚫", (show) => {
-  toggleLandcoverOverlay(show);
-});
 
-makeToggle("Elevation Texture", "🟢", "⚫", (show) => {
-  toggleElevationOverlay(show);
-});
+const texture_layer_names = ["Landcover Texture", "Elevation Texture", "Voronoi Texture", "Graph Texture", "Seed Texture"];
 
-makeToggle("Voronoi Texture", "🟢", "⚫", (show) => {
-  if (viewer._voronoiOverlay) {
-    viewer._voronoiOverlay.show = show;
-  }
-});
+viewer._landcoverOverlay = add_overlay_texture(viewer, base_url + "landcover_overlay.png", rectangle, "Landcover Texture", alpha=0.7);
+viewer._elevationOverlay = add_overlay_texture(viewer, base_url + "elevation_overlay.png", rectangle, "Elevation Texture", alpha=0.7);
+
+viewer._voronoiOverlay = add_overlay_texture(viewer, base_url + "voronoi_overlay.png", rectangle, "Voronoi Texture", alpha=0.7);
+
+// viewer._voronoiGraphOverlay = add_overlay_texture(viewer, base_url + "voronoi_graph_overlay.png", rectangle, "Graph Texture", alpha=1.0);
+
+viewer._voronoiGraphOverlay = add_overlay_at_height(viewer, base_url + "voronoi_graph_overlay.png", rectangle, 3000, "Graph Texture", alpha=0.5);
+
+
+
+viewer._voronoiSeedOverlay = add_overlay_texture(viewer, base_url + "voronoi_seeds_overlay.png", rectangle, "Seed Texture", alpha=1.0);
+
+viewer._voronoiSeed_heightOverlay = add_overlay_at_height(viewer, base_url + "voronoi_seeds_overlay.png", rectangle, 3010, "Seed layer", alpha=1.0);
+
+
+// await add_map_layers(viewer);
+
+
+//abstract AOI mask functions
+
+
+
 
 // ANIMATION sequence starts here================
 
-// === Setup clock ===
-viewer.clock.shouldAnimate = true;
-viewer.clock.startTime = Cesium.JulianDate.fromDate(new Date());
-viewer.clock.currentTime = viewer.clock.startTime;
-viewer.clock.stopTime = Cesium.JulianDate.addSeconds(viewer.clock.startTime, 60, new Cesium.JulianDate());
-viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
-viewer.timeline.zoomTo(viewer.clock.startTime, viewer.clock.stopTime);
-viewer.clock.multiplier = 2;
+
+let voronoiLayer = null;
+
+  async function load_voronoi_layer_ds() {
+    console.log("🔄 Loading Voronoi data...");
+    //https://raw.githubusercontent.com/pranayspeed/Cesium_demo/main
+    const ds = await Cesium.GeoJsonDataSource.load(
+      "/static/voronoi_3d.geojson",
+      { clampToGround: true,
+        show: false  // start hidden
+      }
+    );
+
+viewer.dataSources.add(ds);
+voronoiLayer = ds;
+
+
+const entities = voronoiLayer.entities.values;
+
+entities.forEach((entity) => {
+
+  entity.polygon.show = false; // start hidden
+});
+
+}
+
+await load_voronoi_layer_ds();
+
+if (!voronoiLayer) {
+  console.error("❌ Voronoi layer failed to load");
+  return;
+}
+
+
+
+
+// // 3D content
+
+// console.log("⏳ Preloading Voronoi data...");
+// const centroidMap = await preloadVoronoi_seeds(viewer, voronoiLayer);
+
+
+// // === seed Toggle ===
+// makeToggle("Voronoi Seed", "🟢", "⚫", (show) => {
+//     toggleSeeds(show);
+//   });
+
+
+// await toggleSeeds(false);
+// await toggleElevationVoronoi(false);
+
+
+// console.log("Cacheing polygon styles...");
+// await create3DPrimitiveFromVoronoi(viewer, voronoiLayer);
+// console.log("✅ Polygon styles cached.");
+
+// // toggle3DPrimitiveStyle(viewer, "landcover");
+// await addBlackOutlinesForVoronoi(viewer, voronoiLayer);
+
+// document.addEventListener("keydown", (ev) => {
+//   if (ev.key === "1") toggle3DPrimitiveStyle(viewer, "landcover");
+//   if (ev.key === "2") toggle3DPrimitiveStyle(viewer, "elevation");
+//   if (ev.key === "3") toggle3DPrimitiveStyle(viewer, "grade");
+// });
+
+
+// // === Voronoi Toggle ===
+// makeToggle("Voronoi Layer", "🟢", "⚫", (show) => {
+//     toggleElevationVoronoi(show);
+//     toggleBlackOutlines(viewer, show);
+//   });
+
+
+
+// show_tasks(tasks_old);
+// --- Track mask state ---
+
+let aoiEnabled = false;
+makeToggle("AOI Mask", "🟢", "🔴", (aoiEnabled) =>   {   
+  if (aoiEnabled) {
+    applyAOIMask(rectangle);
+  } else {
+    clearAOIMask();
+  }
+  aoiEnabled = !aoiEnabled;
+});
+
+
+
+
+
+// Helper to add a normal action button (not a toggle)
+function makeButton(label, color = "#0078D7", onClick) {
+  const btn = document.createElement("div");
+  btn.textContent = label;
+  btn.style.background = color;
+  btn.style.color = "white";
+  btn.style.padding = "6px 14px";
+  btn.style.borderRadius = "6px";
+  btn.style.cursor = "pointer";
+  btn.style.margin = "4px";
+  btn.style.fontWeight = "500";
+  btn.style.border = "1px solid #444";
+  btn.style.boxShadow = "0 1px 2px rgba(0,0,0,0.3)";
+  btn.style.transition = "background 0.2s";
+
+  btn.addEventListener("mouseenter", () => btn.style.background = "#0a84ff");
+  btn.addEventListener("mouseleave", () => btn.style.background = color);
+  btn.addEventListener("click", onClick);
+
+  toggleContainer.appendChild(btn);
+  return btn;
+}
+
+
+
+// // === Define reversible schedule ===
+// const reversibleSteps = [
+//   {
+//     time: 0,
+//     forward: async () => {
+//       console.log("▶ Step1: Show seeds + top-down view");
+//     await toggleSeeds(false);
+//     await clearAOIMask();
+    
+//     },
+//     reverse: async () => {
+//       console.log("⬅ Undo Step1: Hide seeds + clear AOI");
+//       await toggleSeeds(false);
+//       await clearAOIMask();
+//     }
+//   },
+//   {
+//     time: 5,
+//     forward: async () => await viewer.flyTo(voronoiLayer, { duration: 2 }),
+//     reverse: async () => console.log("⬅ Undo fly-to (optional reset camera)")
+//   },
+//   {
+//     time: 7,
+//     forward: async () => {
+//       await applyAOIMask(rectangle);
+//       zoom_to_custom_height_1();
+//     },
+//     reverse: async () => await  clearAOIMask()
+//   },
+//   {
+//     time: 8,
+//     forward: async () => viewer.entities.remove(bboxEntity),
+//     reverse: async () => viewer.entities.add(bboxEntity)
+//   },
+//   {
+//     time: 10,
+//     forward: async () => await toggleSeeds(true),
+//     reverse: async () => await toggleSeeds(false)
+//   },
+//   {
+//     time: 14,
+//     forward: async () => {
+//     await toggleSeeds(false);
+//     await toggleElevationVoronoi(true);
+//     },
+//     reverse: async () => {
+//       await toggleElevationVoronoi(false);
+//       await toggleSeeds(true);
+//     },
+
+//   }
+// ];
+
+
+function hideall_textures() {
+  viewer._landcoverOverlay.show = false;
+  viewer._elevationOverlay.show = false;
+  viewer._voronoiOverlay.show = false;
+  viewer._voronoiGraphOverlay.show = false;
+  viewer._voronoiSeedOverlay.show = false;
+}
+
 // === Define reversible schedule ===
 const reversibleSteps = [
   {
     time: 0,
     forward: async () => {
       console.log("▶ Step1: Show seeds + top-down view");
-    // await preloadVoronoi_seeds(viewer);
     await toggleSeeds(false);
+    await clearAOIMask();
     
     },
     reverse: async () => {
@@ -1158,62 +1282,485 @@ const reversibleSteps = [
   },
   {
     time: 7,
-    forward: async () => await applyAOIMask(rectangle),
+    forward: async () => {
+      await applyAOIMask(rectangle);
+      zoom_to_custom_height_1();
+    },
     reverse: async () => await  clearAOIMask()
   },
   {
     time: 8,
     forward: async () => viewer.entities.remove(bboxEntity),
     reverse: async () => viewer.entities.add(bboxEntity)
-  },
-  {
-    time: 10,
-    forward: async () => await toggleSeeds(true),
-    reverse: async () => await toggleSeeds(false)
-  },
-  {
-    time: 14,
-    forward: async () => {
-    await toggleSeeds(false);
-    await toggleElevationVoronoi(true);
-    },
-    reverse: async () => {
-      await toggleElevationVoronoi(false);
-      await toggleSeeds(true);
-    },
-
   }
 ];
 
-let executedForward = new Set();
-let executedReverse = new Set();
-let lastTime = viewer.clock.startTime;
-
-console.log("⏳ Preloading Voronoi data...");
-await preloadVoronoi_seeds(viewer);
-await toggleSeeds(true);
-await toggleElevationVoronoi(true);
-console.log("✅ Voronoi data ready. Use timeline or play/pause to control.");
-await toggleSeeds(false);
-await toggleElevationVoronoi(false);
-
-console.log("Cacheing polygon styles...");
-await create3DPrimitiveFromVoronoi(viewer, voronoiLayer);
-console.log("✅ Polygon styles cached.");
 
 
-await addVoronoiGraph(viewer, "/static/voronoi_graph.geojson");
+const abstraction_roi_rectangle = [-116.351152, 34.399434, -116.276720, 34.460928]; 
+// var bboxEntity_new = null;
 
 
-// toggle3DPrimitiveStyle(viewer, "landcover");
-await addBlackOutlinesForVoronoi(viewer, voronoiLayer);
+function draw_abstraction_roi() {
+// Get center of rectangle
+// W, S, E, N
+const west = abstraction_roi_rectangle[0];
+const south = abstraction_roi_rectangle[1];
+const east = abstraction_roi_rectangle[2];
+const north = abstraction_roi_rectangle[3];
+const centerLon = (west + east) / 2;
+const centerLat = (south + north) / 2;
 
-document.addEventListener("keydown", (ev) => {
-  if (ev.key === "1") toggle3DPrimitiveStyle(viewer, "landcover");
-  if (ev.key === "2") toggle3DPrimitiveStyle(viewer, "elevation");
-  if (ev.key === "3") toggle3DPrimitiveStyle(viewer, "grade");
+var scale=1;
+corners_curr = [
+  [west, south, 2000*scale],
+  [west, north, 2000*scale],
+  [east, north, 2000*scale],
+  [east, south, 2000*scale],
+  [west, south, 2000*scale], // close loop
+];
+
+
+// Polyline floating above terrain
+const bboxEntity_new = viewer.entities.add({
+  name: "Bounding Box Outline",
+  polyline: {
+    positions: Cesium.Cartesian3.fromDegreesArrayHeights(corners_curr.flat()),
+    width: 4,
+    material: Cesium.Color.BLUE,
+    clampToGround: false,
+  },
+});
+return bboxEntity_new;
+}
+
+const bboxEntity_new = draw_abstraction_roi();
+
+const rectangle_curr = Cesium.Rectangle.fromDegrees(abstraction_roi_rectangle[0], abstraction_roi_rectangle[1], abstraction_roi_rectangle[2], abstraction_roi_rectangle[3]);
+
+
+function toggle_abstraction_bbox(show = true) {
+  if (bboxEntity_new) bboxEntity_new.show = show;
+  viewer.scene.requestRender();
+}
+
+
+
+makeButton("Reset View", "#0078D7", async () => {
+  hideall_textures();
+  clearAOIMask();
+  await viewer.flyTo(voronoiLayer, { duration: 2 });
+  toggle_bbox_outline(false);
+  toggle_abstraction_bbox(false);
+
 });
 
+makeButton("Step 1", "#0078D7", async () => {
+hideall_textures();
+toggle_bbox_outline(true);
+clearAOIMask();
+await zoom_to_custom_height_1();
+
+});
+
+
+makeButton("Step 2", "#0078D7", async () => {
+
+  
+await applyAOIMask(rectangle);
+// manually show Elevation
+// manually show Landcover
+
+});
+
+
+
+
+
+
+async function zoom_to_custom_abstract_region() {
+// Get center of rectangle
+// W, S, E, N
+const west = abstraction_roi_rectangle[0];
+const south = abstraction_roi_rectangle[1];
+const east = abstraction_roi_rectangle[2];
+const north = abstraction_roi_rectangle[3];
+const centerLon = (west + east) / 2;
+const centerLat = (south + north) / 2;
+
+  var cartesian = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 2000);
+
+  // Define a bounding sphere around the task point
+  var sphere = new Cesium.BoundingSphere(cartesian, 5000.0); // radius = how far out the camera frames it
+
+  viewer.camera.flyToBoundingSphere(sphere, {
+    duration: 3,
+    offset: new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(0),   // heading relative to north
+      Cesium.Math.toRadians(-30), // tilt down
+      10000.0                     // distance from the target
+    ),
+  });
+
+
+
+
+  // await viewer.flyTo(rectangle_curr, { duration: 2 })
+
+}
+
+
+
+
+makeButton("Step 3", "#0078D7", async () => {
+toggle_abstraction_bbox(true);
+await zoom_to_custom_abstract_region();
+// manually show Elevation
+// manually show Landcover
+// await clearAOIMask();
+applyAOIMask(rectangle_curr);
+
+});
+
+
+makeButton("Step 4", "#0078D7", async () => {
+  toggle_abstraction_bbox(false);
+hideall_textures();
+clearAOIMask();
+toggle_bbox_outline(true);
+clearAOIMask();
+await zoom_to_custom_height_1();
+applyAOIMask(rectangle);
+});
+
+
+// show tasks
+
+const tasks = [[-116.69014300133762, 34.242955807461634],
+ [-115.7741717137646, 34.55212071346959],
+ [-116.286038021526, 34.48491095129395],
+ [-116.63626233736274, 34.64621438051549],
+ [-115.85499270972693, 34.53867876103446],
+ [-115.88193304171438, 34.35049142694266],
+ [-116.58238167338786, 34.45802704642369],
+ [-116.36685901748832, 34.283281664767024],
+ [-116.05704519963274, 34.269839712331894],
+ [-115.90887337370181, 34.67309828538574],
+ [-115.7741717137646, 34.431143141553434]];
+
+
+async function add_task_markers(viewer, taskLocations) {
+// Create a data source to group them
+// const taskLayer = new Cesium.CustomDataSource("taskPoints");
+
+const taskLayer  = await Cesium.CzmlDataSource.load("/static/task_points_1.czml");
+viewer.dataSources.add(taskLayer);
+viewer.zoomTo(taskLayer);
+
+return taskLayer;
+
+var cartographicTasks = taskLocations.map(t =>
+  Cesium.Cartographic.fromDegrees(t[0], t[1])
+);
+await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, cartographicTasks).then(function(updatedPositions) {
+
+  updatedPositions.forEach((pos, i) => {
+//     taskLocations[i][2] = pos.height;
+//   });
+// });
+
+
+// Add markers
+// taskLocations.forEach((coord, i) => {
+//   const [lon, lat, height] = coord;
+  taskLayer.entities.add({
+    id: `task_${i}`,
+    name: `Task ${i}`,
+    position: Cesium.Cartesian3.fromRadians(pos.longitude, pos.latitude, pos.height+20),// Cesium.Cartesian3.fromDegrees(lon, lat, height),
+    point: {
+      pixelSize: 10,
+      color: (i === 2) ? Cesium.Color.ORANGE :       // Vehicle Depot
+             (i === 10) ? Cesium.Color.BLUE :        // Human Depot
+             Cesium.Color.RED,
+      outlineColor: Cesium.Color.WHITE,
+      outlineWidth: 1.5
+    },
+    label: {
+      text: `T${i}`,
+      font: "14px sans-serif",
+      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+      fillColor: Cesium.Color.BLACK,
+      outlineColor: Cesium.Color.BLACK,
+      outlineWidth: 2,
+      verticalOrigin: Cesium.VerticalOrigin.TOP,
+      pixelOffset: new Cesium.Cartesian2(0, -16)
+    }
+  });
+});
+
+});
+
+// Add to viewer
+viewer.dataSources.add(taskLayer);
+
+// Focus camera on all tasks
+viewer.flyTo(taskLayer);
+
+return taskLayer;
+}
+
+// const taskLayer = await add_task_markers(viewer,tasks);
+
+// show_tasks(tasks, false);
+
+const taskLayer = await add_task_markers(viewer,tasks);
+
+
+function toggle_tasks_markers(show = true) {
+  if (taskLayer) taskLayer.show = show;
+  viewer.scene.requestRender();
+}
+
+// === Tasks Toggle ===
+makeToggle("Task Markers", "🟢", "⚫", (show) => {
+    toggle_tasks_markers(show);
+  });
+
+
+function add_overlay_at_height(viewer, imageUrl, rectangle, height = 1000, layer_name = "Overlay", alpha=1.0) {
+  // --- Define AOI rectangle ---
+  // const rectangle = Cesium.Rectangle.fromDegrees(
+  //   -116.71692, 34.202242, -115.71606, 34.753553
+  // );
+
+  // === LAYER 1: Landcover ===
+  const current_layer = viewer.entities.add({
+    name: layer_name,
+    rectangle: {
+      coordinates: rectangle,
+      height: height, //10000, // meters above terrain
+      material: new Cesium.ImageMaterialProperty({
+        image: imageUrl,
+        transparent: true,
+        color: Cesium.Color.WHITE.withAlpha(alpha),
+      }),
+      outline: true,
+      outlineColor: Cesium.Color.BLACK.withAlpha(0.9),
+    },
+    show: true,
+  });
+
+
+  // === Landcover Toggle ===
+  makeToggle(layer_name, "🟢", "⚫", (show) => {
+    if (current_layer) current_layer.show = show;
+  });
+  return current_layer;
+
+
+}
+
+
+// viewer._agent1_all_paths = add_overlay_at_height(viewer, base_url + "HeavyHumanmission_all_paths_overlay.png", rectangle, 3000, "H Human", alpha=1.0);
+// viewer._agent2_all_paths = add_overlay_at_height(viewer, base_url + "LightHumanmission_all_paths_overlay.png", rectangle, 3000, "L Human", alpha=1.0);
+// viewer._agent3_all_paths = add_overlay_at_height(viewer, base_url + "HeavyVehiclemission_all_paths_overlay.png", rectangle, 3000, "H Vehicle", alpha=1.0);
+// viewer._agent4_all_paths = add_overlay_at_height(viewer, base_url + "LightVehiclemission_all_paths_overlay.png", rectangle, 3000, "L Vehicle", alpha=1.0);
+
+
+
+// ALL PATHS LAYER (flat on ground)
+
+// viewer._agent1_all_paths = add_overlay_texture(viewer, base_url + "HeavyHumanmission_all_paths_overlay.png", rectangle, "H Human", alpha=1.0);
+// viewer._agent2_all_paths = add_overlay_texture(viewer, base_url + "LightHumanmission_all_paths_overlay.png", rectangle, "L Human", alpha=1.0);
+// viewer._agent3_all_paths = add_overlay_texture(viewer, base_url + "HeavyVehiclemission_all_paths_overlay.png", rectangle, "H Vehicle", alpha=1.0);
+// viewer._agent4_all_paths = add_overlay_texture(viewer, base_url + "LightVehiclemission_all_paths_overlay.png", rectangle, "L Vehicle", alpha=1.0);
+
+
+
+
+async function clampCZMLToTerrain(ds) {
+  for (const ent of ds.entities.values) {
+    if (!ent.position) continue;
+    const property = ent.position;
+    const times = property._property?._times || property._times || [];
+    if (!times.length) continue;
+
+    const positions = times.map(t => property.getValue(t));
+    const cartographics = positions.map(p => Cesium.Cartographic.fromCartesian(p));
+    const updated = await Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, cartographics);
+
+    // Replace entity’s position samples with terrain heights
+    const newSamples = updated.map(c => Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, c.height));
+    const newProp = new Cesium.SampledPositionProperty();
+    times.forEach((t, i) => newProp.addSample(t, newSamples[i]));
+    ent.position = newProp;
+  }
+  console.log("✅ All agent paths clamped to terrain heights");
+}
+
+
+
+
+makeButton("COA 1", "#0078D7", async () => {
+
+  // const czmlPromise = Cesium.CzmlDataSource.load("/static/agents_coa_1.czml");
+
+  const czmlPromise = Cesium.CzmlDataSource.load("/static/agents_coa_3d_1.czml");
+
+
+  // viewer.dataSources.add(czmlPromise);
+  // viewer.zoomTo(czmlPromise);
+
+  // czmlPromise.then(ds => {
+  //   viewer.zoomTo(ds);
+
+  //   // Speed up the simulation:
+  //   viewer.clock.multiplier = 10;   // 10× faster than real time
+  //   viewer.clock.shouldAnimate = true;
+  // });
+
+czmlPromise.then(ds => {
+  viewer.dataSources.add(ds);
+
+  clampCZMLToTerrain(ds).then(() => {
+
+  // viewer.zoomTo(ds);
+  // Speed up the simulation:
+  viewer.clock.multiplier = 1;   // 10× faster than real time
+  viewer.clock.shouldAnimate = true;
+  ds.entities.values.forEach(ent => {
+    if (ent.position) {
+      const fullPath = new Cesium.PolylineGraphics({
+        positions: ent.position, // uses the same dynamic path
+        clampToGround: true,
+        width: 1.5,
+        material: Cesium.Color.WHITE.withAlpha(0.3)
+      });
+      viewer.entities.add({
+        polyline: fullPath
+      });
+    }
+  });
+  });
+});
+
+
+
+
+
+});
+
+
+function addWeatherEffectForRectangle(viewer, rectangleEntity, type = "snow") {
+  const scene = viewer.scene;
+  scene.globe.depthTestAgainstTerrain = true;
+
+
+// snow
+const snowParticleSize = 12.0;
+const snowRadius = 100000.0;
+const minimumSnowImageSize = new Cesium.Cartesian2(
+  snowParticleSize,
+  snowParticleSize,
+);
+const maximumSnowImageSize = new Cesium.Cartesian2(
+  snowParticleSize * 2.0,
+  snowParticleSize * 2.0,
+);
+let snowGravityScratch = new Cesium.Cartesian3();
+const snowUpdate = function (particle, dt) {
+  snowGravityScratch = Cesium.Cartesian3.normalize(
+    particle.position,
+    snowGravityScratch,
+  );
+  Cesium.Cartesian3.multiplyByScalar(
+    snowGravityScratch,
+    Cesium.Math.randomBetween(-30.0, -300.0),
+    snowGravityScratch,
+  );
+  particle.velocity = Cesium.Cartesian3.add(
+    particle.velocity,
+    snowGravityScratch,
+    particle.velocity,
+  );
+  const distance = Cesium.Cartesian3.distance(
+    scene.camera.position,
+    particle.position,
+  );
+  if (distance > snowRadius) {
+    particle.endColor.alpha = 0.0;
+  } else {
+    particle.endColor.alpha = 1.0 / (distance / snowRadius + 0.1);
+  }
+};
+  // scene.primitives.removeAll();
+  scene.primitives.add(
+    new Cesium.ParticleSystem({
+      modelMatrix: new Cesium.Matrix4.fromTranslation(scene.camera.position),
+      minimumSpeed: -1.0,
+      maximumSpeed: 0.0,
+      lifetime: 15.0,
+      emitter: new Cesium.SphereEmitter(snowRadius),
+      startScale: 0.5,
+      endScale: 1.0,
+      image: "/static/snowflake_particle.png",
+      emissionRate: 7000.0,
+      startColor: Cesium.Color.WHITE.withAlpha(0.0),
+      endColor: Cesium.Color.WHITE.withAlpha(1.0),
+      minimumImageSize: minimumSnowImageSize,
+      maximumImageSize: maximumSnowImageSize,
+      updateCallback: snowUpdate,
+    }),
+  );
+
+  scene.skyAtmosphere.hueShift = -0.8;
+  scene.skyAtmosphere.saturationShift = -0.7;
+  scene.skyAtmosphere.brightnessShift = -0.33;
+  scene.fog.density = 0.001;
+  scene.fog.minimumBrightness = 0.8;
+// }
+
+
+  // scene.primitives.add(system);
+}
+
+
+
+// // Create a rectangle entity
+// const rainRect = viewer.entities.add({
+//   rectangle: {
+//     coordinates: rectangle,
+//     material: Cesium.Color.BLUE.withAlpha(0.2),
+//     heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+//     height: 0,
+//   }
+// });
+
+// addWeatherEffectForRectangle(viewer, rainRect, "rain");
+
+
+function animation_setup()
+{
+  
+let executedForward = new Set();
+let executedReverse = new Set();
+
+
+
+
+// === Setup clock ===
+viewer.clock.shouldAnimate = true;
+viewer.clock.startTime = Cesium.JulianDate.fromDate(new Date());
+viewer.clock.currentTime = viewer.clock.startTime;
+viewer.clock.stopTime = Cesium.JulianDate.addSeconds(viewer.clock.startTime, 60, new Cesium.JulianDate());
+viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
+viewer.timeline.zoomTo(viewer.clock.startTime, viewer.clock.stopTime);
+viewer.clock.multiplier = 2;
+
+
+
+
+let lastTime = viewer.clock.startTime;
 
 // === On every clock tick ===
 viewer.clock.onTick.addEventListener(async (clock) => {
@@ -1237,6 +1784,7 @@ viewer.clock.onTick.addEventListener(async (clock) => {
   }
 });
 
+}
 
 
   });
